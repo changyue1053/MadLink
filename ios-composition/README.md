@@ -80,3 +80,17 @@ of the fixture's native callbacks and API initialization against anonymously rea
 public headers at the pinned MadObs commit. Those temporary headers were not
 committed. This host check does not compile XCTest, ARC or the Apple modules;
 actual fixture-compile and Xcode/XCTest execution await hosted Apple validation.
+
+Run 44485843867 passed the actual fixture syntax check and reached Ld for
+SmokeTests. The runtime archive is now one explicitly quoted absolute operand
+expanded from MADOBS_PREFIX in OTHER_LDFLAGS, alongside -lz and -lc++, instead of
+a custom PBX source-tree archive reference. No duplicate archive input or search
+by library name remains. This is an explicit resolution change, not confirmation
+of the prior linker's missing symbol or root cause. Default OFF outputs and actual
+ON acceptance are unchanged.
+
+Failure diagnostics additionally allow only fixed missing-input/platform classes,
+known public fixture symbol names, and zero/one/multiple archive operands in an
+echoed clang link command for SmokeTests.xctest. Echoed-command inspection is not
+proof the linker loaded the archive. Unknown paths, symbols and raw lines are
+never printed; if no recognizable command is captured, no operand count is claimed.

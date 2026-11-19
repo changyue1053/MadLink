@@ -8,8 +8,11 @@ def generate_composition(consumer,installed):
   'MADOBS_PREFIX':str(installed),
   # Quoting here survives build-setting expansion of the deliberately spaced prefix.
   'HEADER_SEARCH_PATHS':['$(inherited)','"$(MADOBS_PREFIX)/include"','"$(SRCROOT)/optional"'],
-  'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','XCTest','-lz'],
- },test_libraries=[('lib/libmadobs_runtime.a','archive.ar','MADOBS_PREFIX')])
+  # Explicit absolute archive operand after build-setting expansion. No custom
+  # PBX source-tree lookup, -l name search, or duplicate archive reference.
+  'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','XCTest',
+                   '"$(MADOBS_PREFIX)/lib/libmadobs_runtime.a"','-lz'],
+ })
 
 def fixture_compile_args(consumer,installed,sdk,platform_dir):
  consumer=Path(consumer);installed=Path(installed)

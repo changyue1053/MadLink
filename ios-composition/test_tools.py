@@ -23,3 +23,13 @@ assert compiler_categories('CompileC private ARC no matching function')==[]
 assert compiler_categories("The following build commands failed:\n CompileC /secret (in target 'SmokeTests' from project 'Preview')")==['failed-CompileC-SmokeTests']
 assert compiler_categories("The following build commands failed:\n CompileC /secret (in target 'PRIVATE' from project 'Preview')")==[]
 print('PASS: anchored compiler classes, known headers and failed command/target only')
+from tools import linker_categories
+assert linker_categories('Undefined symbols for architecture arm64:\n "_madobs_create", referenced from:\n "_secret", referenced from:')==['link-undefined-arm64','link-symbol-_madobs_create']
+assert linker_categories('/private/clang++ -bundle -o /private/SmokeTests.xctest/SmokeTests "/private/relocated obs/lib/libmadobs_runtime.a"')==['link-echo-runtime-operands-1']
+assert linker_categories('/private/clang++ -bundle -o /private/SmokeTests.xctest/SmokeTests')==['link-echo-runtime-operands-0']
+assert linker_categories('/private/clang++ -bundle -o /private/Demo.app/Demo /secret/libmadobs_runtime.a')==[]
+assert linker_categories('/private/clang++ -c -bundle -o /private/SmokeTests.xctest/SmokeTests')==[]
+assert linker_categories('ld: file not found: /private/secret')==['link-missing-input']
+print('PASS: fixed link symbols and known bundle echoed-operand count; no arbitrary text')
+assert linker_categories('/clang++ -bundle -o /x/SmokeTests.xctest/SmokeTests /a/libmadobs_runtime.a /b/libmadobs_runtime.a')==['link-echo-runtime-operands-multiple']
+assert linker_categories('/clang++ -bundle -o "/unterminated')==[]

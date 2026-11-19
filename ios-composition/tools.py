@@ -1,5 +1,6 @@
 """Composition-only fixed stages; no external log text is emitted."""
 import re
+import shlex
 import subprocess
 import tempfile
 STAGES={'git-pin','git-origin','git-clean','core-package','sdk-path','sdk-version','sdk-platform','fixture-compile',
@@ -33,6 +34,36 @@ def compiler_categories(text):
    if m:add('failed-'+m[1]+'-'+m[2])
  return found
 
+def linker_categories(text):
+ # Only fixed categories and names from our public fixture, never arbitrary symbols.
+ found=[];undefined=False
+ known={'_madobs_create','_madobs_start','_madobs_stop','_madobs_destroy',
+        '_madobs_observer_for_runtime','_madobs_get_generic_stats','_madobs_check_private_batch',
+        '_ml_create_v1','_ml_connect_v1','_ml_tick_v1','_ml_close_v1','_ml_next_event_v1','_ml_destroy_v1'}
+ def add(label):
+  if label not in found and len(found)<16:found.append(label)
+ for line in text.splitlines():
+  line=line.strip()
+  if line=='Undefined symbols for architecture arm64:':
+   undefined=True;add('link-undefined-arm64')
+  if undefined:
+   match=re.fullmatch(r'"([^"\n]+)", referenced from:',line)
+   if match and match[1] in known:add('link-symbol-'+match[1])
+  if re.match(r'^ld: (?:file not found:|library .* not found|library not found)',line):add('link-missing-input')
+  if line.startswith('ld: ') and 'building for' in line and ('built for' in line or 'linking in' in line):add('link-platform-mismatch')
+  # Inspect only a printed compiler link invocation for the known XCTest bundle.
+  # This is the echoed command, not proof the linker completed or loaded the archive.
+  if len(line)>65536:continue
+  try:args=shlex.split(line)
+  except ValueError:continue
+  if not args or args[0].rsplit('/',1)[-1] not in {'clang','clang++'}:continue
+  if '-bundle' not in args or '-c' in args or '-o' not in args:continue
+  index=args.index('-o')+1
+  if index>=len(args) or not args[index].endswith('/SmokeTests.xctest/SmokeTests'):continue
+  count=sum(arg.rsplit('/',1)[-1]=='libmadobs_runtime.a' for arg in args)
+  add('link-echo-runtime-operands-'+('0' if count==0 else '1' if count==1 else 'multiple'))
+ return found
+
 def mark(kind,stage):
  if stage not in STAGES:raise ValueError('invalid stage')
  print('COMPOSITION '+kind+' stage='+stage,flush=True)
@@ -56,7 +87,7 @@ def run(args,stage,cwd=None,capture=False,timeout=600):
    text=log.read(512*1024).decode('utf-8',errors='replace')
    for label,terms in CATEGORIES.items():
     if any(term in text for term in terms):print('COMPOSITION CATEGORY '+label,flush=True)
-   for label in compiler_categories(text):print('COMPOSITION CLASS '+label,flush=True)
+   for label in compiler_categories(text)+linker_categories(text):print('COMPOSITION CLASS '+label,flush=True)
    raise RuntimeError('tool failure') from None
   result=None
   if capture:

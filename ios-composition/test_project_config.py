@@ -9,16 +9,23 @@ with tempfile.TemporaryDirectory(prefix='composition paths ') as tmp:
  root=Path(tmp);consumer=root/'consumer';consumer.mkdir();installed=root/'relocated obs'
  config.generate_composition(consumer,installed)
  text=(consumer/'Preview.xcodeproj/project.pbxproj').read_text()
- assert text.count('"path" = "lib/libmadobs_runtime.a"; "lastKnownFileType" = "archive.ar"; "sourceTree" = "MADOBS_PREFIX";')==1
+ assert '"sourceTree" = "MADOBS_PREFIX"' not in text
+ assert '"path" = "lib/libmadobs_runtime.a"' not in text
  assert text.count('"MADOBS_PREFIX" = ')==2
  assert text.count('"HEADER_SEARCH_PATHS" = ')==2
  assert text.count('"-lz"')==2
- assert str(installed/'lib/libmadobs_runtime.a') not in text
+ assert text.count('lib/libmadobs_runtime.a')==2
  assert '\\"$(MADOBS_PREFIX)/include\\"' in text
- # Static library file reference is used by one build file and one framework phase.
- ref=re.search(r'"([A-F0-9]{24})" = \{ "isa" = "PBXFileReference"; "path" = "lib/libmadobs_runtime.a"',text)[1]
- build=re.search(r'"([A-F0-9]{24})" = \{ "isa" = "PBXBuildFile"; "fileRef" = "'+ref+'"',text)[1]
- assert text.count('"'+build+'"')==2
+ # Verify the quoted operand survives substitution/tokenization with spaces.
+ import shlex
+ captured={}
+ def capture(*args,**kwargs):captured.update(kwargs)
+ with patch.object(config,'generate',capture):config.generate_composition(consumer,installed)
+ flags=captured['test_settings']['OTHER_LDFLAGS']
+ expanded=' '.join(flags).replace('$(MADOBS_PREFIX)',str(installed))
+ tokens=shlex.split(expanded)
+ assert tokens.count(str(installed/'lib/libmadobs_runtime.a'))==1
+ assert 'test_libraries' not in captured
  # argv keeps paths with spaces as single elements and uses exact installed headers.
  xc=consumer/'MadLink.xcframework';frame=xc/'ios-arm64-simulator/MadLink.framework'
  (frame/'Headers').mkdir(parents=True);(frame/'Headers/madlink_c.h').touch()
@@ -30,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='composition paths ') as tmp:
  assert args[args.index('-target')+1]=='arm64-apple-ios15.0-simulator'
  assert installed/'include' in args and args[-1]==consumer/'Tests.mm'
  assert '-fsyntax-only' in args and '-fobjc-arc' in args
-print('PASS: explicit static library reference, test-only settings, quoted prefix and fixture argv')
+print('PASS: single quoted archive operand, test-only settings, spaced prefix and fixture argv')
 # Hashes measured against public 7bb583cb's unchanged default generator outputs.
 import hashlib
 expected={False:['9a3bab6a7c814eaf2c214cc10ce9046be567b4da73509315b35f3846acc127bd','79c033ec02e18f1a4aa06a92b5e6c382f81fef7b687e575d03e2fc42a61db338'],True:['f7f5dea738bfb12d5c5a47c2f9a387ceed85dfbc55c83179d1345784196409bf','268d1b0f2a4f9d12376d014f2d7d237eb00cb913d6901d79761eebdc1926e04a']}
