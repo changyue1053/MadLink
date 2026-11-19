@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+android {
+namespace 'org.madlink.preview'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    ndkVersion '28.2.13676358'
+    defaultConfig { minSdk 24; targetSdk 35; ndk { abiFilters 'arm64-v8a' }
+        externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_static' } }
+    }
+    externalNativeBuild { cmake { path 'CMakeLists.txt'; version '3.22.1' } }
+    defaultConfig { applicationId 'org.madlink.preview'; versionCode 1; versionName '0.1'; testInstrumentationRunner 'android.test.InstrumentationTestRunner' }
+    buildFeatures { prefab true }
+    packaging { jniLibs { useLegacyPackaging false } }
+}
+dependencies { implementation files('libs/madlink.aar') }

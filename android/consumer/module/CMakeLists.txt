@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(independent_app LANGUAGES C CXX)
+find_package(madlink REQUIRED CONFIG)
+add_library(smoke SHARED smoke.cpp)
+target_compile_features(smoke PRIVATE cxx_std_17)
+target_compile_options(smoke PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(smoke PRIVATE madlink::madlink)
+target_link_options(smoke PRIVATE -Wl,-z,max-page-size=16384)

@@ -1,0 +1,30 @@
+name: Android Prefab build preview
+'on':
+  push:
+    branches: [checkpoint/madlink-source-preview]
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Existing runner JDK and authorized official SDK packages
+        run: |
+          test -x "$JAVA_HOME_17_X64/bin/java"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1' < /dev/null > /tmp/madlink-sdk.log 2>&1
+          test -x "$ANDROID_HOME/cmake/3.22.1/bin/cmake"
+      - name: Checksum-pinned official Gradle
+        run: |
+          curl --fail --location --proto '=https' --proto-redir '=https' --output "$RUNNER_TEMP/madlink-gradle.zip" https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          echo "d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab  $RUNNER_TEMP/madlink-gradle.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/madlink-gradle.zip" -d "$RUNNER_TEMP/madlink-tools"
+      - name: Independent Prefab consumer and alignment (not device execution)
+        run: |
+          python3 packaging/test-android-preview.py --sdk "$ANDROID_HOME" --gradle "$RUNNER_TEMP/madlink-tools/gradle-8.9/bin/gradle" > /tmp/madlink-android.log 2>&1
+          echo 'PASS: ARM64 Prefab AAR consumed by independent APK; ELF and uncompressed ZIP 16KiB alignment. Android runtime NOT RUN.' >> "$GITHUB_STEP_SUMMARY"

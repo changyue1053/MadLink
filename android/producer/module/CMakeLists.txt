@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(madlink LANGUAGES C CXX)
+add_library(madlink STATIC core/madlink.cpp core/madlink_c.cpp)
+target_compile_features(madlink PRIVATE cxx_std_17)
+target_compile_options(madlink PRIVATE -Wall -Wextra -Wpedantic -Werror -fexceptions)
+set_target_properties(madlink PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(madlink PRIVATE core)
