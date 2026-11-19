@@ -1,0 +1,10 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: madlink
+Description: Experimental core C SDK (C++ linker required; no network dependency)
+Version: 0.1.0
+Libs: -L${libdir} -lmadlink
+Cflags: -I${includedir}

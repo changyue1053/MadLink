@@ -1,74 +1,163 @@
-# MadLink (experimental)
+# MadLink public-source slice A
 
-Business-agnostic reliable communication SDK extracted from IMLink, preserving
-QUIC/TCP-TLS, request/cancellation, retry budgets, DNS, push and platform sources.
-Not an IM SDK. No MadDB/MadCrypto/MadInfer/MadMedia/MadObs runtime dependency.
-Current tested build: Linux x86_64, TCP/TLS and QUIC static build; platform bindings retained but not
-validated in this environment. This batch does not claim production readiness.
+Newly written, dependency-free C++17 prototype for a reusable connection core.
+This is not recovered IMLink/MadLink code and does not claim compatibility with
+any existing server or previous SDK. No private source or recovery package was
+used. The default Core contains no wire protocol, credential handling or TLS.
+An explicitly optional localhost-tested WSS experiment is described below.
 
-## Reproducible standalone build
+## Run
 
-CMake >=3.20, C++17 compiler, make, Python for include checks.
-Acquire pinned dependencies explicitly, not during configure:
+    sh run-tests.sh
+    EXTRA_CXXFLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' sh run-tests.sh
 
-```sh
-bash scripts/fetch_deps.sh /tmp/madlink-deps
-BSSL=/tmp/madlink-deps/boringssl-533902fb2e8fd0586db7d58879d697721726605a
-cmake -S "$BSSL" -B /tmp/madlink-deps/boringssl-build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
-cmake --build /tmp/madlink-deps/boringssl-build --target ssl crypto -j4
-cmake -S . -B build -DMADLINK_ENABLE_QUIC=OFF \
-  -DIMLINK_BSSL_DIR="$BSSL" -DIMLINK_BSSL_BUILD=/tmp/madlink-deps/boringssl-build \
-  -DMADLINK_GTEST_SOURCE=/tmp/madlink-deps/googletest-1.17.0
-cmake --build build -j4
-ctest --test-dir build --output-on-failure
-```
+Only an existing C++17 compiler is required; nothing is downloaded or installed.
 
-`-DBUILD_TESTING=OFF` needs no GoogleTest. QUIC is explicit, never detected from
-an incidental library file: `-DMADLINK_ENABLE_QUIC=ON` requires pinned XQUIC source
-and static build (`IMLINK_XQUIC_DIR`, `IMLINK_XQUIC_BUILD`) and fails if missing.
-To build the pinned QUIC dependency (the SDK only needs its static target):
+## Contract
 
-```sh
-bash scripts/fetch_deps.sh /tmp/madlink-deps quic
-XQUIC=/tmp/madlink-deps/xquic-278755ef64a4ed7ac89c0ac1fc30aacb1221b8d4
-cmake -S "$XQUIC" -B /tmp/madlink-deps/xquic-build -DSSL_TYPE=boringssl \
-  -DSSL_PATH="$BSSL" -DSSL_INC_PATH="$BSSL/include" \
-  '-DSSL_LIB_PATH=/tmp/madlink-deps/boringssl-build/libssl.a;/tmp/madlink-deps/boringssl-build/libcrypto.a' \
-  -DXQC_ENABLE_TESTING=0
-cmake --build /tmp/madlink-deps/xquic-build --target xquic-static -j4
-# Add MADLINK_ENABLE_QUIC=ON, IMLINK_XQUIC_DIR=$XQUIC and
-# IMLINK_XQUIC_BUILD=/tmp/madlink-deps/xquic-build to the SDK configure command.
-```
+- Per-instance state; injected, borrowed transport, monotonic clock and randomness.
+  Dependencies must outlive the client. One transport instance belongs to one client.
+- Owner-thread-only API, including polling and destruction. **Not thread-safe.**
+  Platform wrappers must serialize operations. No worker thread or scheduled task.
+- Allocation exceptions may propagate. `send` preserves queue accounting when
+  insertion allocation fails, but the API as a whole does not promise recovery from
+  out-of-memory failures (for example diagnostic-event allocation). Production C ABI
+  work must define exception containment and allocation-failure semantics.
+  An accepted write is removed before its diagnostic event is allocated: if that
+  allocation throws, a later tick will not replay it, but its `written` event may be
+  lost. An exception from tick must not be interpreted as permission to resend.
+- Transport methods and optional observation sink must be nonblocking and must not
+  reenter the client. Slow observers are not isolated in this prototype.
+- `tick()` processes bounded incoming events and pending writes. Clock values must
+  never decrease. Call regularly; there is no hidden event loop.
+- Endpoint is an opaque nonempty string passed to the adapter, not a protocol choice.
+- Send is allowed only while connected. Deadline is absolute monotonic milliseconds.
+  Bytes are copied/moved into a count- and logical-payload-size-bounded queue.
+  `written` means the transport accepted
+  the bytes locally, not peer delivery or business acknowledgment. Adapters accepting
+  data must take ownership/copy it before returning. Retry never replays messages.
+- Explicit close cancels pending sends, invalidates old generation events and stops
+  retries. Close is idempotent. Reopen is explicit. A finite retry budget applies to
+  the entire connection lifecycle until another explicit `connect` call.
+- Destructor closes the transport without invoking telemetry or application callbacks.
+  There are no async client callbacks to fire after destruction; events are polled.
+- Diagnostic events are bounded; overflow drops the oldest and increments
+  `dropped_events()`. Therefore events are **not** a reliable operation ledger or an
+  inbound-message delivery guarantee. A production adapter needs receive backpressure
+  and a non-dropping completion strategy before this can be used as an IM SDK.
+- All byte limits refer to `vector::size()`, NOT capacity, allocation or process memory.
+  A moved vector can retain capacity much greater than its logical payload size.
+  `queued_bytes()` reports logical payload bytes only. There is no hard memory bound
+  in this prototype, including event buffers, caller arguments and adapter buffers.
+  Production hard memory limits require owned bounded buffers/allocators and receive
+  backpressure. Receive size is checked after adapter delivery; a real parser must
+  bound allocation before constructing a message.
+- Send deadlines are checked immediately before each adapter write invocation. This
+  does not guarantee remote receipt by that deadline or prevent time advancing inside
+  an adapter call. Adapters must implement any stronger completion deadline semantics.
+- Retry uses capped exponential equal-jitter delay. Timeout and cancellation do not
+  imply a remote endpoint has undone any action.
+- Telemetry is optional via an injected metadata-only sink; null means no telemetry.
+  No MadObs dependency, exporter, credential, payload logging or telemetry network.
 
-Real QUIC integration tests accept an external test server via
-`MADLINK_QUIC_TEST_SERVER=/absolute/path/to/test_server`.
-Use `MADLINK_REQUIRE_QUIC_INTEGRATION=ON` for release verification: configure fails
-if that binary is absent. In development mode four server tests explicitly skip
-when absent; skipped is NOT passed.
+## Verified scope and remaining work
 
-Third-party libraries remain outside this repository; no private source is fetched.
+Tests cover local lifecycle, deadlines, cancellation, send bounds, stale generations,
+retry exhaustion, no replay, receive limits, diagnostics overflow, instance isolation,
+optional telemetry and destruction. Optional network testing is limited to the local
+TLS fixture described below; mobile builds and production interoperability are untested.
 
-## Consumption
+Android JNI, Swift, ArkTS,
+concurrency, production executors, durable completion, fuzzing, production network adapters,
+MadObs runtime integration and business protocol plugins remain **unimplemented**.
 
-Use `add_subdirectory(MadLink)` and `target_link_libraries(app PRIVATE MadLink::MadLink)`.
-Include `<madlink/madlink.h>`; `madlink` is currently a C++ namespace alias over the
-preserved implementation. See `PUBLIC_API.md` for lifecycle and compatibility limits.
-The two-app host sample constructs independent clients with distinct protocols.
+## Versioned C ABI minimal slice
 
-Observability is opt-in: set `MADLINK_WITH_OBS=ON` and provide the public MadObs
-API include directory via `MADOBS_INCLUDE_DIR`, then link `MadLink::ObsAdapter`.
-It is header-only, no runtime link. Assign an SDK ID explicitly (global registry
-not frozen). A custom `metrics_sink` or absent sink also works. Never export body,
-tokens, free-form tags or paths through telemetry. Empty log sink is Noop.
+`include/madlink_c.h` exposes opaque handles, fixed-width status/constants, versioned
+structures and `_v1` symbol names. `src/madlink_c.cpp` adapts host-provided callbacks
+without exposing C++ types or ownership. This is an ABI stability strategy and initial
+prototype, NOT a promise of already validated compatibility with future releases,
+different architectures, calling conventions or mobile toolchains.
 
-Important behavior changes: readiness timeout is fail-closed; SPKI/mTLS unsupported
-config returns null instead of being silently accepted. Legacy protocol/ALPN and
-cache identifiers are preserved. Historical `imlink/README.md` is source context,
-not this SDK's release status. See `TASK_RESULT.md` and `SUPPORT_MATRIX.md`.
+Run `sh run-c-abi-tests.sh`. It builds one `build/sdk/lib/libmadlink.a` and ships only
+`madlink_c.h` in the SDK include directory. Two independent C11 translation units in
+`consumers/app_a` and `consumers/app_b` link against that same archive, without including
+the C++ header or compiling SDK sources in the consumer. A covers binary send lifecycle;
+B covers receive, cancellation, version rejection and two-handle isolation. These are
+native command-line consumers, not Android/iOS/HarmonyOS applications.
 
-## Publication gate
+Host callback structures are copied; their user context and functions must remain valid
+through destroy. Endpoint/write bytes are borrowed for the callback only. Poll event
+data must remain valid until the next host callback; the bridge copies it. Returned
+event bytes remain valid until the next `ml_next_event_v1` or destroy, even if empty.
+Only the owner thread may call APIs/destroy. Callbacks may not reenter APIs, throw or
+block. No background executor or application notification callbacks exist. Invalid or
+freed pointer arguments cannot be validated: the caller must provide live handles,
+readable buffers of the declared size, and structures with at least the version header.
 
-The owner authorized this experimental public source checkpoint after the scoped
-review in `docs/PUBLICATION_REVIEW.md`. No first-party open-source license is
-granted or invented. Publication is not a production release. Upstream notices
-are in `LICENSES/`; outstanding release gates are in `TASK_RESULT.md`.
+Bridge exceptions become status codes; OOM/internal failure poisons the handle and only
+destruction is supported thereafter. A separate allocation-injection executable checks
+create OOM and send OOM containment/poisoning. This is containment, not broad recovery:
+tick failure may follow side effects, and cannot justify resending. Host callbacks that
+throw violate the contract and are not covered by this guarantee.
+
+Diagnostics remain lossy as described above. The C slice does not solve durable
+completion delivery, hard memory caps, transport security or real network interoperability.
+First-party source is MIT licensed; see LICENSE and THIRD_PARTY_NOTICES.md.
+
+## Optional local WSS experiment
+
+An opt-in libcurl adapter and localhost TLS tests are now in `optional/curl` and
+`tests/wss`. See `optional/curl/README.md` for accepted-buffer semantics, partial-frame
+handling, licensing, verified tests and substantial remaining limitations. Run
+`sh run-wss-tests.sh` explicitly; the default dependency-free builds are unchanged.
+
+## Relocatable installed core C package
+
+`sh packaging/install-core.sh ABS_PREFIX ABS_BUILD_DIR` assembles a local static core
+SDK with only the C header, archive, relative-prefix pkg-config metadata and installed
+contract documentation. It requires an existing GCC/Clang-style C++17 toolchain and ar;
+it does not install any tools. Consumers compile C11 and link with the matching C++
+driver. No curl/WSS or MadObs component is installed with this core package.
+
+Run `python3 packaging/test-relocation.py` for stronger isolation evidence: a disposable
+copy of this new producer builds/installs the package, the prefix moves to a path with
+spaces, and that generated producer source/build tree is deleted before either consumer
+is compiled. Each standalone consumer uses only its own main.c/Makefile and relocated
+package metadata. Dependency files, package contents, file hashes, Linux dynamic
+dependencies and command logs are recorded in ignored build evidence. Missing SDK
+prefixes must fail instead of silently falling back to a globally installed package.
+
+This is relocatable installation verified on native Linux, not universal binary
+portability or validation on Android/iOS/HarmonyOS. Other compiler, OS and ABI targets
+remain untested. First-party licensing does not change third-party dependency terms.
+
+The host compiler gate is `python3 packaging/test-compiler-matrix.py`. It attempts
+GCC→GCC, GCC→Clang, Clang→GCC and Clang→Clang using discovered existing tools. Each
+executed direction independently repeats producer deletion, prefix relocation and
+both standalone C consumer checks. It never installs tools. Exit 1 means a failing
+executed case; exit 2 means incomplete coverage due to missing compilers, not a pass.
+The current environment has GCC/G++ 14.2.0 but no discovered Clang pair, so only
+GCC→GCC is verified. WSS and any future MadObs adapter are separate from this gate.
+
+## Optional MadObs API-only stage
+
+`optional/madobs` adds a bounded metadata queue and explicit drain through the exact
+public MadObs 79fd8ced observer/privacy headers. It is not included in the default
+installed core SDK. See its README for ownership, threading, rejection and privacy
+contracts. `sh run-madobs-tests.sh MADOBS_API_PREFIX` verifies pinned header hashes
+and runs Core and installed-C-consumer checks. This stage uses real public header
+implementations with a test observer; official MadObs package installation and runtime
+admission/WAL/exporter integration have not been tested or implemented here.
+
+The previously researched public standards/platform references inform future adapters,
+not implementation claims:
+- https://www.rfc-editor.org/info/rfc6455/
+- https://www.rfc-editor.org/info/rfc9846/
+- https://opentelemetry.io/docs/specs/otel/library-guidelines/
+- https://developer.android.com/ndk/guides/stable_apis
+- https://www.swift.org/documentation/cxx-interop/
+- https://developer.huawei.com/consumer/cn/doc/HarmonyOS-Guides/ndk-development-overview/
+
+First-party source is licensed under MIT (LICENSE). No third-party source is vendored.
+See THIRD_PARTY_NOTICES.md before packaging optional dependencies.
