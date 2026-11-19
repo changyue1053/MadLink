@@ -34,3 +34,13 @@ asset catalog, privacy-sensitive resource, entitlement or copied third-party
 asset is introduced. MIT and THIRD_PARTY_NOTICES are copied beside the generated
 XCFramework. This source preview does not claim an App Store privacy assessment
 or binary-distribution license audit.
+
+Hosted run 44459622113 completed archives/XCFramework and structural assertions,
+then failed during the independent simulator test command. This is not a passing
+simulator result. The follow-up splits build-for-testing from test-without-building
+and uses explicit ARM64, serial testing and local ad-hoc simulator signing
+(CODE_SIGNING_ALLOWED=YES, CODE_SIGN_IDENTITY=-, CODE_SIGNING_REQUIRED=NO).
+Archive signing remains disabled. No signing account, keychain credential or
+provisioning update is requested. Failure reporting emits only fixed stages,
+exception classes, exit codes and at most eight fixed error categories; raw
+output and exception paths are not printed. Actual simulator success remains pending.
