@@ -4,7 +4,8 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'ios'))
 from project import generate
-from tools import run, readable_archive
+from sdk_package import build_package
+from tools import run, readable_archive, mark
 from results import verify
 PIN='4af77ffa464a48307e5ff2d95f10b835919d205b'
 def main():
@@ -15,11 +16,14 @@ def main():
  assert git('git-pin','rev-parse','HEAD')==PIN
  assert git('git-origin','remote','get-url','origin')=='https://github.com/changyue1053/MadObs.git'
  assert not git('git-clean','status','--porcelain')
- # Existing OFF validation is executed unchanged. Identify only this invocation's output.
- off=root/'build/ios-preview';before=set(off.glob('check-*')) if off.exists() else set()
- run([sys.executable,root/'ios/verify.py'],'off-gate',cwd=root)
- added=set(off.glob('check-*'))-before;assert len(added)==1
- xc=added.pop()/'relocated package/MadLink.xcframework';assert xc.is_dir()
+ # Build and inspect a fresh relocated package, without a nested OFF simulator.
+ # The separate standalone workflow remains the mandatory OFF runtime gate.
+ mark('START','core-package')
+ try:
+  _,xc=build_package(root)
+ except BaseException:
+  mark('FAIL','core-package');raise
+ mark('PASS','core-package')
  base=root/'build/ios-composition';base.mkdir(parents=True,exist_ok=True)
  work=Path(tempfile.mkdtemp(prefix='check-',dir=base))
  sdk=run(['xcrun','--sdk','iphonesimulator','--show-sdk-path'],'sdk-path',capture=True).strip()

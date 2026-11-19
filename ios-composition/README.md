@@ -1,6 +1,6 @@
 # Optional iOS local composition validation
 
-Opt-in test source only. Default core and existing OFF jobs are unchanged. A
+Opt-in test source only. Default core and mandatory standalone OFF runtime acceptance are unchanged. A
 separate CI job temporarily fetches public MadObs at
 4af77ffa464a48307e5ff2d95f10b835919d205b without credentials, builds the real
 simulator runtime with target SDK zlib and null crypto, then deletes its disposable
@@ -8,7 +8,10 @@ producer before linking the independent XCTest consumer. No upstream source or
 binary is committed, uploaded or redistributed; public visibility is NOT a license
 grant and this adds no license for MadObs. Distribution requires separate clearance.
 
-Existing MadLink OFF archive/simulator gate is rerun unchanged before ON. ON links
+ON builds and inspects its own fresh relocated MadLink package with the shared
+package-only function, deleting the disposable producer. It does not run or claim
+an OFF runtime test. Both separate standalone OFF and optional ON workflow jobs
+must pass at the same exact commit; neither substitutes for the other. ON links
 MadObs only into the XCTest bundle; App remains standalone. The test drains three
 synthetic C ABI state events through our bounded queue into the actual runtime,
 checks admission/drain/drop counters and at least one policy-safe local sink batch.
@@ -49,3 +52,10 @@ header/module, ARC and signature errors, plus allowlisted failed command/target
 pairs. Only four known public header names may be reported; unknown names/paths
 remain suppressed. Public pinned runtime signatures match the calls on inspection;
 no speculative ABI, include-path or lifecycle change is made by this diagnostic patch.
+
+Run 44479952608 timed out in the previously nested OFF gate before ON. Package
+construction/inspection is now shared, while the standalone default still always
+runs its real simulator test. ON launches only its own simulator and retains the
+exact named real runtime XCTest acceptance. Archive commands retain their bounded
+per-command timeouts; there is no aggregate 600-second subprocess around a second
+whole OFF test. No simulator result is inferred from package-only success.
