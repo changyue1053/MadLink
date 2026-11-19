@@ -59,7 +59,7 @@ pc_env = {"PKG_CONFIG_PATH": str(prefix / "lib/pkgconfig"),
 for flag in ("--cflags", "--libs", "--modversion"):
     value = command(["pkg-config", flag, "madlink"], run, pc_env)
     assert str(producer) not in value and str(root / "src") not in value
-for app in ("app_a", "app_b"):
+for app in ("app_a", "app_b", "session_lifecycle"):
     consumer = run / app
     consumer.mkdir()
     for name in ("main.c", "Makefile"):
@@ -95,4 +95,4 @@ evidence = {"prefix": str(prefix), "removed_producer": str(producer), "producer_
             "files_sha256": manifest, "commands": records,
             "scope": "Linux native relocated core C SDK, not mobile/cross-architecture/WSS/MadObs"}
 (run / "evidence.json").write_text(json.dumps(evidence, indent=2)+"\n")
-print(f"PASS: two standalone C consumers after producer deletion; evidence {run / 'evidence.json'}")
+print(f"PASS: three standalone C consumers after producer deletion; evidence {run / 'evidence.json'}")

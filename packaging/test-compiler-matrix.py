@@ -47,7 +47,7 @@ for producer in ("gcc", "clang"):
         cases.append(case)
         print(f"{label}: {case['status']}")
 summary = {"compilers": compilers, "cases": cases, "complete": all(c["status"] == "pass" for c in cases),
-           "scope": "native host ABI only; each executed case deletes disposable producer, relocates prefix and tests two C consumers"}
+           "scope": "native host ABI only; each executed case deletes disposable producer, relocates prefix and tests three C consumers (including repeated two-instance recovery)"}
 evidence = run / "matrix.json"
 evidence.write_text(json.dumps(summary, indent=2)+"\n")
 print(f"Matrix evidence: {evidence}")

@@ -1,7 +1,7 @@
 name: Experimental host verification
 'on':
   push:
-    branches: [checkpoint/madlink-source-preview]
+    branches: [checkpoint/madlink-source-preview, checkpoint/madlink-host-session-acceptance]
 permissions:
   contents: read
 concurrency:
@@ -47,7 +47,7 @@ jobs:
       - name: All four producer and consumer directions
         run: |
           python3 packaging/test-compiler-matrix.py > /tmp/madlink-matrix.log 2>&1
-          echo 'PASS: GCC/GCC, GCC/Clang, Clang/GCC, Clang/Clang; disposable producer removed, prefix moved, two independent C consumers per direction' >> "$GITHUB_STEP_SUMMARY"
+          echo 'PASS: GCC/GCC, GCC/Clang, Clang/GCC, Clang/Clang; disposable producer removed, prefix moved, three independent C consumers per direction, including repeated two-instance recovery' >> "$GITHUB_STEP_SUMMARY"
   madobs-api-only:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
