@@ -7,6 +7,7 @@ from project import generate
 from sdk_package import build_package
 from tools import run, readable_archive, mark
 from results import verify
+from project_config import generate_composition, fixture_compile_args
 PIN='4af77ffa464a48307e5ff2d95f10b835919d205b'
 def main():
  if platform.system()!='Darwin' or platform.machine()!='arm64':raise SystemExit('NOT RUN: Apple ARM64 required')
@@ -53,15 +54,14 @@ def main():
  # Only our optional header is staged. No upstream code becomes repository content.
  optional=consumer/'optional/madlink_madobs';optional.mkdir(parents=True)
  shutil.copyfile(root/'optional/madobs/queued_observer.hpp',optional/'queued_observer.hpp')
- generate(consumer)
- pbx=consumer/'Preview.xcodeproj/project.pbxproj';text=pbx.read_text()
- # Apply only to hosted test configs (two TEST_HOST entries), never App/core.
- insertion='"HEADER_SEARCH_PATHS" = ('+json.dumps(str(installed/'include'))+',"$(SRCROOT)/optional"); '
- text=text.replace('"TEST_HOST" =',insertion+'"TEST_HOST" =')
- text=text.replace('"-framework","XCTest"','"-framework","XCTest",'+json.dumps(str(installed/'lib/libmadobs_runtime.a'))+',"-lz"')
- assert text.count(str(installed/'lib/libmadobs_runtime.a'))==2
- assert str(producer) not in text
- pbx.write_text(text)
+ generate_composition(consumer,installed)
+ assert str(producer) not in (consumer/'Preview.xcodeproj/project.pbxproj').read_text()
+ # Compile the actual unmodified XCTest translation unit before creating a simulator.
+ # This checks installed public headers, C ABI signatures, ARC and Apple modules;
+ # it is NOT link, runtime, or XCTest acceptance evidence.
+ platform_dir=run(['xcrun','--sdk','iphonesimulator','--show-sdk-platform-path'],
+                  'sdk-platform',capture=True).strip()
+ run(fixture_compile_args(consumer,installed,sdk,platform_dir),'fixture-compile',cwd=consumer)
  udid=run(['xcrun','simctl','create','MadLinkObsSynthetic','com.apple.CoreSimulator.SimDeviceType.iPhone-17','com.apple.CoreSimulator.SimRuntime.iOS-26-2'],'sim-create',capture=True).strip()
  assert re.fullmatch(r'[0-9A-Fa-f-]{36}',udid)
  try:

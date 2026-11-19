@@ -59,3 +59,24 @@ runs its real simulator test. ON launches only its own simulator and retains the
 exact named real runtime XCTest acceptance. Archive commands retain their bounded
 per-command timeouts; there is no aggregate 600-second subprocess around a second
 whole OFF test. No simulator result is inferred from package-only success.
+
+Run 44482235489 reached ON build but returned only a generic build failure. The
+composition no longer edits serialized project text. Test-only generator inputs
+now declare MADOBS_PREFIX, quoted header search paths, and a static archive file
+reference in PBXFrameworksBuildPhase instead of a path in OTHER_LDFLAGS. The App
+and default producer/consumer generated projects remain unchanged. This removes
+fragile configuration, not a claim that it explains the observed failure.
+
+Before creating a simulator, stage fixture-compile invokes the pinned SDK's
+clang++ on the actual unchanged Tests.mm with ARM64 simulator target, C++17, ARC,
+modules, installed public headers and relocated MadLink framework. It performs
+syntax-only compilation, not linking or runtime testing. Failure distinguishes
+fixture/API/Apple-header issues from later Xcode build-graph/link/test stages.
+Both mandatory exact-commit OFF and ON runtime gates remain required.
+
+Local Linux checks passed explicit test-target/library-reference and spaced-path
+argv tests, unchanged default project/scheme hashes, and a C++17 syntax-only check
+of the fixture's native callbacks and API initialization against anonymously read
+public headers at the pinned MadObs commit. Those temporary headers were not
+committed. This host check does not compile XCTest, ARC or the Apple modules;
+actual fixture-compile and Xcode/XCTest execution await hosted Apple validation.

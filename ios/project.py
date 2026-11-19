@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-def generate(folder, producer=False):
+def generate(folder, producer=False, *, test_settings=None, test_libraries=()):
     folder=Path(folder);objects={};counter=0
     def obj(isa,**kw):
         nonlocal counter
@@ -13,7 +13,7 @@ def generate(folder, producer=False):
     products=[];children=[];targets=[]
     def target(name,kind,sources,libs,extra,headers=()):
         refs=[ref(p,'sourcecode.cpp.objcpp' if p.endswith('.mm') else 'sourcecode.cpp.cpp') for p in sources];children.extend(refs)
-        librefs=[ref(p,t) for p,t in libs];children.extend(librefs)
+        librefs=[ref(*library) for library in libs];children.extend(librefs)
         phases=[phase('PBXSourcesBuildPhase',[build(r) for r in refs]),phase('PBXFrameworksBuildPhase',[build(r) for r in librefs])]
         if headers:
             hr=[ref(p,'sourcecode.c.h') for p in headers];children.extend(hr);phases.append(phase('PBXHeadersBuildPhase',[build(r,True) for r in hr]))
@@ -28,9 +28,9 @@ def generate(folder, producer=False):
         tests=None
     else:
         main=target('Demo','application',['App.mm','Smoke.mm'],[('MadLink.xcframework','wrapper.xcframework')],{'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','UIKit'],'TARGETED_DEVICE_FAMILY':'1,2','INFOPLIST_KEY_UILaunchScreen_Generation':'YES'})
-        tests=target('SmokeTests','bundle.unit-test',['Tests.mm','Smoke.mm'],[('MadLink.xcframework','wrapper.xcframework')],{'TEST_HOST':'$(BUILT_PRODUCTS_DIR)/Demo.app/Demo','BUNDLE_LOADER':'$(TEST_HOST)',
+        tests=target('SmokeTests','bundle.unit-test',['Tests.mm','Smoke.mm'],[('MadLink.xcframework','wrapper.xcframework'),*test_libraries],{'TEST_HOST':'$(BUILT_PRODUCTS_DIR)/Demo.app/Demo','BUNDLE_LOADER':'$(TEST_HOST)',
             'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','XCTest'],
-            'FRAMEWORK_SEARCH_PATHS':['$(inherited)','$(PLATFORM_DIR)/Developer/Library/Frameworks']})
+            'FRAMEWORK_SEARCH_PATHS':['$(inherited)','$(PLATFORM_DIR)/Developer/Library/Frameworks'],**(test_settings or {})})
         proxy=obj('PBXContainerItemProxy',containerPortal='000000000000000000000000',proxyType=1,remoteGlobalIDString=main,remoteInfo='Demo')
         dep=obj('PBXTargetDependency',target=main,targetProxy=proxy);objects[tests]['dependencies']=[dep]
     pg=obj('PBXGroup',children=products,name='Products',sourceTree='<group>');group=obj('PBXGroup',children=children+[pg],sourceTree='<group>')

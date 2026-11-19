@@ -2,7 +2,7 @@
 import re
 import subprocess
 import tempfile
-STAGES={'git-pin','git-origin','git-clean','core-package','sdk-path','sdk-version',
+STAGES={'git-pin','git-origin','git-clean','core-package','sdk-path','sdk-version','sdk-platform','fixture-compile',
         'source-archive','runtime-configure','runtime-build','runtime-install',
         'installed-archive','runtime-architecture','sim-create','sim-boot','sim-ready',
         'sim-architecture','on-build','on-test','on-summary','on-cases','sim-delete'}
