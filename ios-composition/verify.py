@@ -62,7 +62,7 @@ def main():
  assert re.fullmatch(r'[0-9A-Fa-f-]{36}',udid)
  try:
   run(['xcrun','simctl','boot',udid],'sim-boot');run(['xcrun','simctl','bootstatus',udid,'-b'],'sim-ready')
-  assert run(['xcrun','simctl','spawn',udid,'uname','-m'],'sim-architecture',capture=True).strip()=='arm64'
+  # Actual XCTest compilation enforces TARGET_OS_SIMULATOR and __arm64__.
   result=work/'result.xcresult'
   args=['-project','Preview.xcodeproj','-scheme','Preview','-destination','platform=iOS Simulator,id='+udid,
         '-derivedDataPath',work/'derived','ARCHS=arm64','ONLY_ACTIVE_ARCH=YES','-parallel-testing-enabled','NO',

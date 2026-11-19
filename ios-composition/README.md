@@ -34,3 +34,11 @@ and numeric exit codes are shown. The installed lib/libmadobs_runtime.a must ope
 and have static archive magic before lipo. This name matches the pinned upstream
 OUTPUT_NAME madobs_runtime and ARCHIVE DESTINATION lib, as well as its published
 iOS validation script. No path or build behavior was rewritten without evidence.
+
+Run 44469509797 passed OFF, runtime install and relocated archive ARM64 inspection,
+then failed on a missing simulator guest uname helper. Architecture acceptance is
+now enforced in the actual XCTest translation unit with TARGET_OS_SIMULATOR and
+__arm64__ compile guards. The guest shell utility is no longer required. Explicit
+ARM64 build settings, created UUID destination, archive architecture inspection
+and exact named successful XCTest acceptance remain mandatory and unchanged.
+This fix does not claim that the ON test has executed successfully yet.

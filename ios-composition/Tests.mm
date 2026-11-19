@@ -1,3 +1,7 @@
+#include <TargetConditionals.h>
+#if !TARGET_OS_SIMULATOR || !defined(__arm64__)
+#error "Composition XCTest requires ARM64 iOS Simulator"
+#endif
 #import <XCTest/XCTest.h>
 #import <MadLink/madlink_c.h>
 #include <madobs/runtime.h>
