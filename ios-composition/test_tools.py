@@ -15,3 +15,11 @@ assert 'private' not in out.getvalue() and 'secret' not in out.getvalue()
 assert 'stage=installed-archive' in out.getvalue() and 'stage=runtime-architecture' in out.getvalue()
 assert 'COMPOSITION EXIT 2' in out.getvalue()
 print('PASS: distinct stages, archive guard, fixed diagnostics and no raw output')
+from tools import compiler_categories
+assert compiler_categories("/secret/Tests.mm:12:3: error: use of undeclared identifier 'SECRET'")==['unknown-identifier']
+assert compiler_categories("/secret/a:2:4: fatal error: 'madobs/runtime.h' file not found")==['no-header','missing-header-madobs/runtime.h']
+assert compiler_categories("/secret/a:2:4: fatal error: 'private-secret.h' file not found")==['no-header']
+assert compiler_categories('CompileC private ARC no matching function')==[]
+assert compiler_categories("The following build commands failed:\n CompileC /secret (in target 'SmokeTests' from project 'Preview')")==['failed-CompileC-SmokeTests']
+assert compiler_categories("The following build commands failed:\n CompileC /secret (in target 'PRIVATE' from project 'Preview')")==[]
+print('PASS: anchored compiler classes, known headers and failed command/target only')

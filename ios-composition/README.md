@@ -42,3 +42,10 @@ __arm64__ compile guards. The guest shell utility is no longer required. Explici
 ARM64 build settings, created UUID destination, archive architecture inspection
 and exact named successful XCTest acceptance remain mandatory and unchanged.
 This fix does not claim that the ON test has executed successfully yet.
+
+Run 44473294042 reached ON build-for-testing after OFF and installed ARM64 runtime
+checks. Compiler diagnostics now distinguish anchored unknown identifier, missing
+header/module, ARC and signature errors, plus allowlisted failed command/target
+pairs. Only four known public header names may be reported; unknown names/paths
+remain suppressed. Public pinned runtime signatures match the calls on inspection;
+no speculative ABI, include-path or lifecycle change is made by this diagnostic patch.
