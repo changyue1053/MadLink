@@ -3,7 +3,7 @@ import re
 import subprocess
 import tempfile
 
-STAGES = {'tool-preflight','producer-build','aar-inspection','consumer-build',
+STAGES = {'tool-preflight','producer-build','aar-inspection','consumer-build','consumer-apk-build','consumer-test-apk-build',
           'zip-alignment','elf-inspection','dependency-inspection','evidence'}
 # Match ordinary build failures, but deliberately do not echo their dynamic suffix.
 # Paths, URLs, source snippets, credentials and artifact content never pass through.
@@ -21,6 +21,38 @@ PATTERNS = (
  ('native-build-failed', re.compile(r'ninja: build stopped')),
  ('sdk-license-required', re.compile(r'licenses? (have not been accepted|not accepted)', re.I)),
 )
+# Only enumerated generated tasks from this project's two fixed modules.
+TASKS = {':module:'+name for name in (
+    'assembleDebug','assembleDebugAndroidTest','preDebugBuild','checkDebugAarMetadata',
+    'processDebugMainManifest','processDebugManifest','processDebugResources',
+    'mergeDebugResources','compileDebugJavaWithJavac','mergeDebugNativeLibs',
+    'stripDebugDebugSymbols','packageDebug','configureCMakeDebug[arm64-v8a]',
+    'buildCMakeDebug[arm64-v8a]','externalNativeBuildDebug',
+    'compileDebugAndroidTestJavaWithJavac','processDebugAndroidTestManifest',
+    'processDebugAndroidTestResources','checkDebugAndroidTestAarMetadata',
+    'mergeDebugAndroidTestResources','mergeDebugAndroidTestNativeLibs',
+    'packageDebugAndroidTest','dexBuilderDebug','dexBuilderDebugAndroidTest')}
+TASKS.add(':madlink:assembleRelease')
+def failed_tasks(lines):
+    found=[]
+    for line in lines:
+        match=re.fullmatch(r"\s*> Task (:[^\s]+) FAILED\s*",line)
+        if not match:
+            match=re.fullmatch(r"\s*Execution failed for task '(:[^']+)'\.?\s*",line)
+        if match and match[1] in TASKS and match[1] not in found:
+            found.append(match[1])
+            if len(found)==4: break
+    return found
+
+def log_edges(stream):
+    # Failure is commonly at the tail after Gradle progress/dependency output.
+    # Read at most 512 KiB per stream, not the whole raw build log.
+    stream.seek(0,2);size=stream.tell();stream.seek(0)
+    head=stream.read(256*1024)
+    if size<=len(head): return head
+    stream.seek(max(len(head),size-256*1024))
+    return head+b"\n"+stream.read(256*1024)
+
 def bounded_errors(lines):
     found=[]
     for line in lines:
@@ -38,6 +70,7 @@ def report(stage, error, lines=()):
     code=error.returncode if isinstance(error,subprocess.CalledProcessError) else None
     print('ANDROID FAIL stage='+stage+' exception='+kind+((' exit='+str(int(code))) if code is not None else ''),flush=True)
     for label in bounded_errors(lines): print('ANDROID TOOL ERROR '+label,flush=True)
+    for task in failed_tasks(lines): print('ANDROID FAILED TASK '+task,flush=True)
 
 def run_checked(args, cwd, env, stage, timeout=600, capture_stdout=False):
     # Both streams are disk-backed. Only bounded stdout is returned for parsing;
@@ -47,8 +80,7 @@ def run_checked(args, cwd, env, stage, timeout=600, capture_stdout=False):
             subprocess.run([str(x) for x in args],cwd=cwd,env=env,check=True,
                            timeout=timeout,stdout=out,stderr=err)
         except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as error:
-            out.seek(0);err.seek(0)
-            text=(out.read(512*1024)+b"\n"+err.read(512*1024)).decode('utf-8',errors='replace')
+            text=(log_edges(out)+b"\n"+log_edges(err)).decode('utf-8',errors='replace')
             report(stage,error,text.splitlines())
             raise
         if capture_stdout:

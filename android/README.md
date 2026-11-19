@@ -55,6 +55,13 @@ The Android build driver reports only named stage, exception class, numeric chil
 exit, and up to eight fixed Gradle/CMake/compiler diagnostic categories. It never
 echoes arbitrary tool-message suffixes, commands, environment, URLs, paths or full
 logs. This intentionally over-redacts rather than trusting a secret regex. Child
-output is disk-backed and at most its first MiB is scanned. Unrecognized messages
+output is disk-backed; at most 256 KiB from each end of each stream is scanned. Unrecognized messages
 may therefore require a further narrowly scoped diagnostic patch. No presumed
 build failure has been fixed without evidence; package/runtime gates are unchanged.
+
+Consumer APK assembly and instrumentation APK assembly now have separate diagnostic
+stages. Failed Gradle tasks are emitted only when their complete path equals an
+explicit fixed allowlist entry, never an arbitrary extracted task/path. At most
+four task names are emitted. Bounded log tails are examined because Gradle often
+reports failures after lengthy progress output. No consumer configuration change
+is inferred from an exit code alone.

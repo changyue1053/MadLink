@@ -41,3 +41,16 @@ print('PASS: version stdout-only, stderr suppressed on success/failure/timeout, 
 r=subprocess.run([sys.executable, 'packaging/test-android-preview.py','--unexpected-private-value'],capture_output=True,text=True)
 assert r.returncode==1 and 'unexpected-private' not in r.stdout+r.stderr and 'Traceback' not in r.stderr
 print('PASS: driver invalid CLI emits fixed diagnostic only')
+from android_diagnostics import failed_tasks, log_edges
+assert failed_tasks(['> Task :module:configureCMakeDebug[arm64-v8a] FAILED',
+ "Execution failed for task ':module:compileDebugAndroidTestJavaWithJavac'."])==[
+ ':module:configureCMakeDebug[arm64-v8a]',':module:compileDebugAndroidTestJavaWithJavac']
+assert failed_tasks(['> Task :secret:token FAILED',
+ '> Task :module:assembleDebug FAILED /secret',
+ "Execution failed for task ':module:assembleDebug-secret'."])==[]
+with tempfile.TemporaryFile() as log:
+ log.write(b'x'*1500000+b'\n> Task :module:packageDebug FAILED\n')
+ data=log_edges(log)
+ assert len(data)<=512*1024+1
+ assert failed_tasks(data.decode().splitlines())==[':module:packageDebug']
+print('PASS: exact task allowlist, suffix rejection and bounded failure-tail scan')

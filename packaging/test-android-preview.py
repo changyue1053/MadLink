@@ -56,8 +56,10 @@ try:
         assert not any(n.endswith('madlink.hpp') or n.endswith('.so') for n in names)
     consumer=work/'independent consumer';shutil.copytree(root/'android/consumer',consumer)
     libs=consumer/'module/libs';libs.mkdir();shutil.copyfile(aar,libs/'madlink.aar')
-    stage='consumer-build'
-    build(consumer,':module:assembleDebug',':module:assembleDebugAndroidTest')
+    stage='consumer-apk-build'
+    build(consumer,':module:assembleDebug')
+    stage='consumer-test-apk-build'
+    build(consumer,':module:assembleDebugAndroidTest')
     apk=consumer/'module/build/outputs/apk/debug/module-debug.apk'
     stage='zip-alignment'
     run([sdk/'build-tools/35.0.0/zipalign','-c','-P','16','-v','4',apk],consumer)
