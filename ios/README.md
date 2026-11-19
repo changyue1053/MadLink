@@ -50,3 +50,13 @@ progress is not an error. Only anchored error formats and the explicit failed-co
 summary are classified. Failed commands/targets and undefined symbols are emitted
 only from finite allowlists. No raw paths, symbol names or source lines are printed.
 Current failure remains build-for-testing; this refinement does not assert its cause.
+
+Run 44461087876 identified undefined `_madlinkSmoke` while linking SmokeTests.
+The test target now compiles its own Smoke.mm and explicitly links the same
+relocated static XCFramework as the App. It no longer requires the host executable
+to export the fixture function. TEST_HOST/BUNDLE_LOADER still provide normal hosted
+XCTest execution, not fixture implementation. Each fixture invocation creates and
+destroys its own handle and stack-local host before return; no handles, callbacks
+or mutable fixture state cross App/test modules. The SDK C ABI is unchanged.
+Both targets remain source-producer-free and have no framework embedding phase.
+Actual link/run success must still be established by the next Apple hosted run.

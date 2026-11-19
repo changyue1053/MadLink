@@ -28,7 +28,7 @@ def generate(folder, producer=False):
         tests=None
     else:
         main=target('Demo','application',['App.mm','Smoke.mm'],[('MadLink.xcframework','wrapper.xcframework')],{'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','UIKit'],'TARGETED_DEVICE_FAMILY':'1,2','INFOPLIST_KEY_UILaunchScreen_Generation':'YES'})
-        tests=target('SmokeTests','bundle.unit-test',['Tests.mm'],[],{'TEST_HOST':'$(BUILT_PRODUCTS_DIR)/Demo.app/Demo','BUNDLE_LOADER':'$(TEST_HOST)',
+        tests=target('SmokeTests','bundle.unit-test',['Tests.mm','Smoke.mm'],[('MadLink.xcframework','wrapper.xcframework')],{'TEST_HOST':'$(BUILT_PRODUCTS_DIR)/Demo.app/Demo','BUNDLE_LOADER':'$(TEST_HOST)',
             'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','XCTest'],
             'FRAMEWORK_SEARCH_PATHS':['$(inherited)','$(PLATFORM_DIR)/Developer/Library/Frameworks']})
         proxy=obj('PBXContainerItemProxy',containerPortal='000000000000000000000000',proxyType=1,remoteGlobalIDString=main,remoteInfo='Demo')
