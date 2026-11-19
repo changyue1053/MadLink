@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-def generate(folder, producer=False, *, test_settings=None, test_libraries=()):
+def generate(folder, producer=False, *, test_settings=None, test_libraries=(), test_sources=()):
     folder=Path(folder);objects={};counter=0
     def obj(isa,**kw):
         nonlocal counter
@@ -12,7 +12,7 @@ def generate(folder, producer=False, *, test_settings=None, test_libraries=()):
     def build(r,public=False):return obj('PBXBuildFile',fileRef=r,**({'settings':{'ATTRIBUTES':['Public']}} if public else {}))
     products=[];children=[];targets=[]
     def target(name,kind,sources,libs,extra,headers=()):
-        refs=[ref(p,'sourcecode.cpp.objcpp' if p.endswith('.mm') else 'sourcecode.cpp.cpp') for p in sources];children.extend(refs)
+        refs=[ref(p,{'.c':'sourcecode.c.c','.mm':'sourcecode.cpp.objcpp'}.get(Path(p).suffix,'sourcecode.cpp.cpp')) for p in sources];children.extend(refs)
         librefs=[ref(*library) for library in libs];children.extend(librefs)
         phases=[phase('PBXSourcesBuildPhase',[build(r) for r in refs]),phase('PBXFrameworksBuildPhase',[build(r) for r in librefs])]
         if headers:
@@ -28,7 +28,7 @@ def generate(folder, producer=False, *, test_settings=None, test_libraries=()):
         tests=None
     else:
         main=target('Demo','application',['App.mm','Smoke.mm'],[('MadLink.xcframework','wrapper.xcframework')],{'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','UIKit'],'TARGETED_DEVICE_FAMILY':'1,2','INFOPLIST_KEY_UILaunchScreen_Generation':'YES'})
-        tests=target('SmokeTests','bundle.unit-test',['Tests.mm','Smoke.mm'],[('MadLink.xcframework','wrapper.xcframework'),*test_libraries],{'TEST_HOST':'$(BUILT_PRODUCTS_DIR)/Demo.app/Demo','BUNDLE_LOADER':'$(TEST_HOST)',
+        tests=target('SmokeTests','bundle.unit-test',['Tests.mm','Smoke.mm',*test_sources],[('MadLink.xcframework','wrapper.xcframework'),*test_libraries],{'TEST_HOST':'$(BUILT_PRODUCTS_DIR)/Demo.app/Demo','BUNDLE_LOADER':'$(TEST_HOST)',
             'OTHER_LDFLAGS':['-lc++','-framework','Foundation','-framework','XCTest'],
             'FRAMEWORK_SEARCH_PATHS':['$(inherited)','$(PLATFORM_DIR)/Developer/Library/Frameworks'],**(test_settings or {})})
         proxy=obj('PBXContainerItemProxy',containerPortal='000000000000000000000000',proxyType=1,remoteGlobalIDString=main,remoteInfo='Demo')

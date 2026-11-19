@@ -60,3 +60,23 @@ destroys its own handle and stack-local host before return; no handles, callback
 or mutable fixture state cross App/test modules. The SDK C ABI is unchanged.
 Both targets remain source-producer-free and have no framework embedding phase.
 Actual link/run success must still be established by the next Apple hosted run.
+
+### Opt-in installed SDK session acceptance
+
+The dedicated `checkpoint/madlink-ios-session-acceptance` push branch uses the
+same standalone XCFramework and relocated App/XCTest harness with
+`python3 ios/verify.py --session-acceptance`. No other workflow is enabled on
+that branch. The existing source-preview route keeps its original invocation.
+
+The test bundle compiles the **same** host 32-cycle C fixture as C, using a
+small entry-point and framework-header shim. No second scenario or public API
+is introduced. `MadLinkSessionTests/testInstalledSessionRecovery32Cycles`
+requires the fixture to run on the ARM64 iOS simulator, and the result gate
+requires this and the original `MadLinkTests/testSyntheticLifecycle` to pass
+exactly once with no failed or skipped cases. Both run against the relocated
+static framework; no producer sources are linked into the App.
+
+The two transports and clocks are synthetic. No socket, real network, third
+party, Android runtime, Apple physical device or delivery claim is included.
+Python project/result tests and host C tests are not Xcode evidence; Apple
+compilation and execution require the exact hosted run.

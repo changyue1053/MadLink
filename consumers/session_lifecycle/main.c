@@ -1,5 +1,9 @@
 /* Installed public C ABI only. Synthetic app-owned transports, no sockets/threads. */
+#ifdef MADLINK_SESSION_XCTEST
+#include <MadLink/madlink_c.h>
+#else
 #include "madlink_c.h"
+#endif
 #ifdef NDEBUG
 #error "Runtime acceptance requires active assertions"
 #endif
@@ -120,6 +124,6 @@ int main(void) {
     assert(b.accepted==33 && a.accepted==64 && a.connects==65);
     assert(ml_close_v1(second)==ML_OK);state(second,ML_CLOSED);empty(second);
     ml_destroy_v1(second);assert(b.closes==2);
-    puts("PASS: installed C consumer 32 two-instance recovery cycles, exact event isolation and no replay; synthetic host runtime only");
+    puts("PASS: installed C consumer 32 two-instance recovery cycles, exact event isolation and no replay; synthetic transport only");
     return 0;
 }

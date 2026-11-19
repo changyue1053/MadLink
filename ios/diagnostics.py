@@ -2,7 +2,7 @@
 import re
 import subprocess
 import tempfile
-STAGES={'version','archive-device','archive-simulator','create-xcframework','sim-create','sim-boot','sim-ready','build-for-testing','test-without-building','test-summary','sim-delete'}
+STAGES={'version','archive-device','archive-simulator','create-xcframework','sim-create','sim-boot','sim-ready','build-for-testing','test-without-building','test-summary','test-cases','sim-delete'}
 # Output consists only of constants below; never echo matched source/paths.
 ERRORS = {
  'undefined-symbols': r'^Undefined symbols for architecture arm64:',

@@ -1,7 +1,7 @@
 name: iOS static XCFramework preview
 'on':
   push:
-    branches: [checkpoint/madlink-source-preview]
+    branches: [checkpoint/madlink-source-preview, checkpoint/madlink-ios-session-acceptance]
 permissions:
   contents: read
 jobs:
@@ -15,4 +15,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Native archives, relocated consumer and synthetic XCTest
-        run: python3 ios/verify.py
+        run: |
+          if [ "$GITHUB_REF" = refs/heads/checkpoint/madlink-ios-session-acceptance ]; then
+            python3 ios/verify.py --session-acceptance
+          else
+            python3 ios/verify.py
+          fi
