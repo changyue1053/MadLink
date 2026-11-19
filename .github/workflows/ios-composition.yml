@@ -1,0 +1,29 @@
+name: Optional iOS local runtime composition
+'on':
+  push:
+    branches: [checkpoint/madlink-source-preview]
+permissions:
+  contents: read
+jobs:
+  optional-runtime-on:
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Stage exact public source without credentials
+        env:
+          GIT_CONFIG_NOSYSTEM: '1'
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          mkdir -p build/public-madobs-ios
+          git -C build/public-madobs-ios init -q
+          git -C build/public-madobs-ios remote add origin https://github.com/changyue1053/MadObs.git
+          git -C build/public-madobs-ios -c credential.helper= -c http.extraHeader= fetch --depth=1 origin 4af77ffa464a48307e5ff2d95f10b835919d205b > /tmp/madlink-obs-fetch.log 2>&1
+          git -C build/public-madobs-ios checkout --detach FETCH_HEAD >> /tmp/madlink-obs-fetch.log 2>&1
+      - name: Optional real runtime and local synthetic sink
+        run: python3 ios-composition/verify.py build/public-madobs-ios
