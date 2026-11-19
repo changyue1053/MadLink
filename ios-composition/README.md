@@ -25,3 +25,12 @@ Linux validates only source/static checks. Xcode/CMake iOS build, installed API
 compatibility at the new upstream pin, exact result schema and actual combined
 simulator lifecycle are unverified until the new hosted job passes. Archive/device
 compatibility remains separate from this simulator-only MadObs composition.
+
+Run 44467563564 failed in an ambiguously named version subprocess. Composition
+now emits fixed START/PASS/FAIL stages for Git identity, SDK queries, source archive,
+CMake configure/build/install, installed archive validation, lipo, simulator
+architecture and separate ON test/result commands. Only fixed diagnostic categories
+and numeric exit codes are shown. The installed lib/libmadobs_runtime.a must open
+and have static archive magic before lipo. This name matches the pinned upstream
+OUTPUT_NAME madobs_runtime and ARCHIVE DESTINATION lib, as well as its published
+iOS validation script. No path or build behavior was rewritten without evidence.
