@@ -48,3 +48,13 @@ pinned checkout action. SDK installation reads stdin from /dev/null, relying onl
 on existing runner licenses; no `--licenses` or acceptance piping. A license or
 package availability failure is a blocker, not a successful build. No raw test
 logs/artifacts are uploaded and no main branch trigger is introduced.
+
+## Bounded failure diagnostics
+
+The Android build driver reports only named stage, exception class, numeric child
+exit, and up to eight fixed Gradle/CMake/compiler diagnostic categories. It never
+echoes arbitrary tool-message suffixes, commands, environment, URLs, paths or full
+logs. This intentionally over-redacts rather than trusting a secret regex. Child
+output is disk-backed and at most its first MiB is scanned. Unrecognized messages
+may therefore require a further narrowly scoped diagnostic patch. No presumed
+build failure has been fixed without evidence; package/runtime gates are unchanged.

@@ -26,5 +26,5 @@ jobs:
           unzip -q "$RUNNER_TEMP/madlink-gradle.zip" -d "$RUNNER_TEMP/madlink-tools"
       - name: Independent Prefab consumer and alignment (not device execution)
         run: |
-          python3 packaging/test-android-preview.py --sdk "$ANDROID_HOME" --gradle "$RUNNER_TEMP/madlink-tools/gradle-8.9/bin/gradle" > /tmp/madlink-android.log 2>&1
+          python3 packaging/test-android-preview.py --sdk "$ANDROID_HOME" --gradle "$RUNNER_TEMP/madlink-tools/gradle-8.9/bin/gradle"
           echo 'PASS: ARM64 Prefab AAR consumed by independent APK; ELF and uncompressed ZIP 16KiB alignment. Android runtime NOT RUN.' >> "$GITHUB_STEP_SUMMARY"
