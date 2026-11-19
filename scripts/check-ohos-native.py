@@ -124,7 +124,18 @@ target_link_options(consumer PRIVATE -Wl,-z,defs)
 
 
 def cache(path, sdk):
-    values = dict(re.findall(r'^([^#/:][^:=]*):[^=]+=(.*)$', path.read_text(), re.M))
+    values = {}
+    for line in path.read_text().splitlines():
+        # Parse one record at a time: negated character classes must never eat newlines.
+        require(not line.startswith('#!'))
+        if not line.strip() or line.startswith(('#', '//')):
+            continue
+        match = re.fullmatch(r'([^\s#/:=][^:=\r\n]*):([A-Z_]+)=(.*)', line)
+        require(match is not None)
+        key, kind, value = match.groups()
+        require(key == key.strip() and key not in values)
+        require(kind in {'BOOL', 'FILEPATH', 'PATH', 'STRING', 'INTERNAL', 'STATIC', 'UNINITIALIZED'})
+        values[key] = value
     require(values.get('OHOS_ARCH') == 'arm64-v8a' and values.get('OHOS_STL') == 'c++_shared')
     require(Path(values.get('CMAKE_TOOLCHAIN_FILE', '')).resolve() == sdk / 'build/cmake/ohos.toolchain.cmake')
     for lang, tool in [('C', 'clang'), ('CXX', 'clang++')]:

@@ -110,7 +110,11 @@ be reviewed before changing production code or loosening checks.
 
 ## Local checks
 
-Eleven local structural/negative tests pass after compiler-proof hardening.
+Thirteen local structural/negative tests pass after compiler-proof and cache-parser
+hardening. Cache records use line-by-line full matches, not multiline negated
+character classes. Blank lines, standard generated comments and CRLF are
+accepted; duplicate keys, malformed records, shebang input and known-value drift
+are rejected. This is parser evidence only; official SDK status is unchanged.
 
 `PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-ohos-native.py` covers synthetic
 ELF acceptance/rejections, receipt integrity/tampering, escaping symlinks,
