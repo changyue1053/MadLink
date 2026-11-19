@@ -65,3 +65,15 @@ explicit fixed allowlist entry, never an arbitrary extracted task/path. At most
 four task names are emitted. Bounded log tails are examined because Gradle often
 reports failures after lengthy progress output. No consumer configuration change
 is inferred from an exit code alone.
+
+The retained legacy instrumentation smoke explicitly compiles against SDK optional
+`android.test.runner` and `android.test.base` libraries. This follows Android's
+legacy JUnit3 setup guidance and the same SDK35/AGP8.7.3 configuration used in the
+public MadDB preview. No Maven test dependency or network permission is added.
+AGP generates the instrumentation manifest; device execution remains unverified.
+Reference: https://developer.android.com/training/testing/instrumented-tests/androidx-test-libraries/test-setup
+
+Hosted run 44456901934 reached successful ordinary consumer APK assembly, then
+failed at compileDebugAndroidTestJavaWithJavac. The optional-library fix still
+requires hosted compilation. The later ELF/ZIP alignment assertions have NOT
+passed yet, because the driver stops on instrumentation compilation failure.
