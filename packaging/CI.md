@@ -33,3 +33,10 @@ unsupported cases. No custom curl binary or unpinned source download is added.
 
 Local YAML parsing and command execution do not prove GitHub scheduling or a
 hosted Ubuntu pass. Actual remote results must be read after reviewed publication.
+
+A separate opt-in runtime-local job is described in MADOBS_RUNTIME.md. It anonymously
+fetches the pinned public MadObs source, installs only into disposable local prefixes,
+and runs a real runtime with a synthetic in-process sink, never a telemetry endpoint.
+The existing core, compiler matrix and API-only jobs are unchanged. Build-time public
+source/tool retrieval is not an offline build; the consumer itself has no network
+export and no dependency downloads. Runtime success must be verified on the hosted run.

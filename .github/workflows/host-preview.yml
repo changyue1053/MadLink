@@ -70,3 +70,30 @@ jobs:
           # The test verifies both exact Git blob hashes before compiling.
           sh run-madobs-tests.sh build/public-madobs > /tmp/madlink-api.log 2>&1
           echo 'PASS: pinned MadObs API-only adapter; NOT runtime admission, WAL, exporter or persistence' >> "$GITHUB_STEP_SUMMARY"
+  madobs-runtime-local:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Official Ubuntu runtime build tools
+        run: |
+          sudo apt-get update -qq > /tmp/madlink-runtime-apt.log 2>&1
+          sudo apt-get install -y --no-install-recommends gcc g++ make binutils pkg-config python3 cmake zlib1g-dev ca-certificates git >> /tmp/madlink-runtime-apt.log 2>&1
+      - name: Anonymous pinned public MadObs source (no private fallback)
+        env:
+          GIT_CONFIG_NOSYSTEM: '1'
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          mkdir -p build/public-madobs-runtime
+          git -C build/public-madobs-runtime init -q
+          git -C build/public-madobs-runtime remote add origin https://github.com/changyue1053/MadObs.git
+          git -C build/public-madobs-runtime -c credential.helper= -c http.extraHeader= fetch --depth=1 origin 79fd8ced44a18bca574598ff683cd706ded16a60 > /tmp/madlink-runtime-fetch.log 2>&1
+          git -C build/public-madobs-runtime checkout --detach FETCH_HEAD >> /tmp/madlink-runtime-fetch.log 2>&1
+          test "$(git -C build/public-madobs-runtime rev-parse HEAD)" = 79fd8ced44a18bca574598ff683cd706ded16a60
+      - name: Installed real runtime, synthetic local sink only
+        run: |
+          python3 packaging/test-madobs-runtime.py build/public-madobs-runtime > /tmp/madlink-runtime.log 2>&1
+          echo 'PASS: installed MadLink + pinned real MadObs runtime; admission/drain and local policy-safe batch validation. NOT network delivery, restart persistence, encryption or mobile.' >> "$GITHUB_STEP_SUMMARY"
