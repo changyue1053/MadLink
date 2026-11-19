@@ -44,3 +44,9 @@ Archive signing remains disabled. No signing account, keychain credential or
 provisioning update is requested. Failure reporting emits only fixed stages,
 exception classes, exit codes and at most eight fixed error categories; raw
 output and exception paths are not printed. Actual simulator success remains pending.
+
+Diagnostic refinement after run 44460372563: normal successful CompileC/CodeSign/Ld
+progress is not an error. Only anchored error formats and the explicit failed-command
+summary are classified. Failed commands/targets and undefined symbols are emitted
+only from finite allowlists. No raw paths, symbol names or source lines are printed.
+Current failure remains build-for-testing; this refinement does not assert its cause.
