@@ -79,6 +79,7 @@ class ProbeTests(unittest.TestCase):
             self.assertEqual([command[:3] for command in commands],
                              [["xcrun", "simctl", "create"], ["xcodebuild", "build-for-testing", "-project"],
                               ["xcrun", "simctl", "delete"]])
+            self.assertEqual(run.call_args_list[0].kwargs, {"capture": True, "timeout": 120})
             self.assertIn("platform=iOS Simulator,id=" + uuid, commands[1])
             self.assertEqual(commands[2][-1], uuid)
             self.assertEqual(logs.getvalue().splitlines(),

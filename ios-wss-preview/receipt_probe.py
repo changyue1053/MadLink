@@ -134,7 +134,7 @@ def diagnose(work, xc, original):
     # compilation; they are not a CA, never loaded by XCTest and never bound.
     copy = prepare(folder, xc, b"\0" * 256, (1, 2))
     udid = run(["xcrun", "simctl", "create", "MadLinkWSSPreview", "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
-                "com.apple.CoreSimulator.SimRuntime.iOS-26-2"], "sim-create", capture=True, timeout=60).strip()
+                "com.apple.CoreSimulator.SimRuntime.iOS-26-2"], "sim-create", capture=True, timeout=120).strip()
     check(re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", udid), "simulator-uuid")
     try:
         common = ["-project", "Preview.xcodeproj", "-scheme", "Preview", "-configuration", "Debug",

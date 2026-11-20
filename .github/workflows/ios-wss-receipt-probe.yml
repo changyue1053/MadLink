@@ -14,16 +14,18 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 2
+          fetch-depth: 3
           persist-credentials: false
           submodules: false
           lfs: false
       - name: Verify exact source parent and label boundaries
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^)" = ecfb30dade92a2b5027b728515eb1bd90a2624c3
-          test "$(git rev-parse 'HEAD^1^{tree}')" = 9197615fb9b56118522be16e8dbdf30c07726081
-          git diff --quiet HEAD^ HEAD -- include src ios ios-tracked-preview ios-wss-preview/verify.py ios-wss-preview/binding.py ios-wss-preview/WssTests.mm ios-wss-preview/peer.py
+          test "$(git rev-parse HEAD^)" = cb1bb708a86d6ececc3459b12d109c2dc62566d5
+          test "$(git rev-parse 'HEAD^1^{tree}')" = bef59b36f597b866ac237c73e9126a6328a70c8a
+          test "$(git rev-parse HEAD~2)" = ecfb30dade92a2b5027b728515eb1bd90a2624c3
+          test "$(git rev-parse 'HEAD~2^{tree}')" = 9197615fb9b56118522be16e8dbdf30c07726081
+          git diff --quiet HEAD~2 HEAD -- include src ios ios-tracked-preview ios-wss-preview/verify.py ios-wss-preview/binding.py ios-wss-preview/WssTests.mm ios-wss-preview/peer.py
           test -z "$(git status --porcelain)"
           if env -u PYTHONPATH python3 -B ios-wss-preview/test_receipt_probe.py >/dev/null 2>&1; then
             printf '%s\n' 'WSS_RECEIPT_PROBE portable-guards-pass'
