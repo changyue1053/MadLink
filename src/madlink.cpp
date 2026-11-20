@@ -46,27 +46,40 @@ Error Client::connect(std::string endpoint) {
     return Error::none;
 }
 SendResult Client::send(Bytes data, std::uint64_t deadline) {
+    return send_internal(std::move(data), deadline, nullptr);
+}
+SendResult Client::send_internal(Bytes data, std::uint64_t deadline, CompletionSlot* completion) {
     if (state_ != State::connected) return {Error::invalid_state, 0};
     if (deadline <= clock_.now_ms()) return {Error::timeout, 0};
     if (pending_.size() >= config_.max_messages || data.size() > config_.max_bytes - bytes_)
         return {Error::queue_full, 0};
+    // New tracked handles never wrap IDs, including when mixing tracked and v1 sends.
+    if (tracking_enabled_ && next_id_ == 0) return {Error::queue_full, 0};
     const auto id = next_id_;
     const auto size = data.size();
-    pending_.push_back({id, deadline, std::move(data)});
+    pending_.push_back({id, deadline, std::move(data), completion});
+    if (completion) *completion = {id, Outcome::pending};
     bytes_ += size; // Commit counters only after successful allocation/insertion.
     ++next_id_;
     return {Error::none, id};
+}
+void Client::settle(Pending& pending, Outcome outcome) noexcept {
+    if (pending.completion) pending.completion->outcome = outcome;
 }
 bool Client::cancel(std::uint64_t id) {
     const auto p = std::find_if(pending_.begin(), pending_.end(),
         [id](const Pending& item) { return item.id == id; });
     if (p == pending_.end()) return false;
+    settle(*p, Outcome::cancelled);
     bytes_ -= p->data.size();
     pending_.erase(p);
     emit({EventKind::failed, state_, Error::cancelled, id});
     return true;
 }
 void Client::fail_pending(Error error) {
+    // Settle the entire batch before any best-effort diagnostic can allocate.
+    const auto outcome = error == Error::cancelled ? Outcome::cancelled : Outcome::transport_unknown;
+    for (auto& p : pending_) settle(p, outcome);
     for (const auto& p : pending_) emit({EventKind::failed, state_, error, p.id});
     pending_.clear();
     bytes_ = 0;
@@ -124,6 +137,7 @@ void Client::tick() {
     if (state_ != State::connected) return;
     for (auto p = pending_.begin(); p != pending_.end();) {
         if (p->deadline <= clock_.now_ms()) {
+            settle(*p, Outcome::deadline);
             emit({EventKind::failed, state_, Error::timeout, p->id});
             bytes_ -= p->data.size();
             p = pending_.erase(p);
@@ -134,6 +148,7 @@ void Client::tick() {
         // Polling, callbacks and earlier writes can consume time within one tick.
         // Revalidate immediately before handing each message to the adapter.
         if (p.deadline <= clock_.now_ms()) {
+            settle(p, Outcome::deadline);
             emit({EventKind::failed, state_, Error::timeout, p.id});
             bytes_ -= p.data.size();
             pending_.pop_front();
@@ -145,6 +160,7 @@ void Client::tick() {
         // Transport acceptance is irreversible. Remove this operation before any
         // diagnostic allocation can throw, so a later tick cannot send it twice.
         const auto id = p.id;
+        settle(p, Outcome::local_accepted);
         bytes_ -= p.data.size();
         pending_.pop_front();
         emit({EventKind::written, state_, Error::none, id});

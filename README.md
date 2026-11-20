@@ -95,8 +95,9 @@ block. No background executor or application notification callbacks exist. Inval
 freed pointer arguments cannot be validated: the caller must provide live handles,
 readable buffers of the declared size, and structures with at least the version header.
 
-Bridge exceptions become status codes; OOM/internal failure poisons the handle and only
-destruction is supported thereafter. A separate allocation-injection executable checks
+Bridge exceptions become status codes; OOM/internal failure poisons the handle.
+Legacy access then supports only destruction; the opt-in completion drain below
+remains available. A separate allocation-injection executable checks
 create OOM and send OOM containment/poisoning. This is containment, not broad recovery:
 tick failure may follow side effects, and cannot justify resending. Host callbacks that
 throw violate the contract and are not covered by this guarantee.
@@ -104,6 +105,39 @@ throw violate the contract and are not covered by this guarantee.
 Diagnostics remain lossy as described above. The C slice does not solve durable
 completion delivery, hard memory caps, transport security or real network interoperability.
 First-party source is MIT licensed; see LICENSE and THIRD_PARTY_NOTICES.md.
+
+## Optional tracked send results (installed C SDK)
+
+Use `ml_create_tracked_v1` with 1–1024 result slots, then
+`ml_send_tracked_v1`. Every successful tracked admission returns a per-handle ID
+and reserves one slot until `ml_next_completion_v1` consumes its terminal result.
+A full ledger returns `ML_QUEUE_FULL` without copying payload or assigning
+an ID; draining one result frees one credit. If the handle exhausts unique IDs,
+otherwise admissible sends also return `ML_QUEUE_FULL`, but draining cannot
+restore ID capacity. Pending sends still obey the normal queue, size and
+deadline limits. Legacy create/send and the lossy `ml_next_event_v1` stream are
+unchanged. A legacy send also stays untracked on an opt-in handle.
+
+A terminal result is local acceptance, cancellation (including explicit close),
+deadline, or a conservative unknown after transport or handle failure. Local
+acceptance is **not peer delivery**. An unknown result must not trigger blind
+replay. Reconnect never replays a queued operation. Consume and copy result
+metadata independent of the diagnostics; it contains no payload or user
+context. Acknowledging a result only frees its slot, not network or business
+state.
+
+Use the same owner thread and never reenter from host callbacks. If a tracked
+handle is poisoned, already-established results remain available, and other
+accepted tracked operations settle as handle-fault unknown. Drain before
+destroy; destroying the handle discards remaining results. There is no process
+restart recovery, business acknowledgment, delivery promise, executor, platform
+qualification or hard process-memory cap in this feature.
+
+Run `python3 packaging/test-tracked-completions.py` and again with `--ubsan`.
+The portable host gate removes a disposable producer, moves its installed
+archive and public header, then independently builds the unchanged legacy C
+consumer, adversarial tracked C consumer, and allocation-fault consumer against
+that same archive. No tools are fetched and no transport traffic is sent.
 
 ## Optional local WSS experiment
 

@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+struct ml_client; // C bridge; not part of the C++ client interface.
+
 namespace madlink {
 using Bytes = std::vector<std::uint8_t>;
 enum class State { idle, connecting, connected, backoff, closed };
@@ -68,7 +70,18 @@ public:
     std::size_t queued_bytes() const noexcept { return bytes_; }
     std::uint64_t dropped_events() const noexcept { return dropped_events_; }
 private:
-    struct Pending { std::uint64_t id, deadline; Bytes data; };
+    friend struct ::ml_client;
+    enum class Outcome : std::uint32_t {
+        pending, local_accepted, cancelled, deadline, transport_unknown, handle_fault_unknown
+    };
+    struct CompletionSlot { std::uint64_t operation = 0; Outcome outcome = Outcome::pending; };
+    struct Pending {
+        std::uint64_t id, deadline;
+        Bytes data;
+        CompletionSlot* completion;
+    };
+    SendResult send_internal(Bytes, std::uint64_t deadline, CompletionSlot*);
+    static void settle(Pending&, Outcome) noexcept;
     Transport& transport_;
     Clock& clock_;
     Random& random_;
@@ -79,6 +92,7 @@ private:
     std::uint64_t generation_ = 0, next_id_ = 1, started_ = 0;
     std::uint64_t retry_at_ = 0, dropped_events_ = 0;
     unsigned retries_ = 0;
+    bool tracking_enabled_ = false;
     std::size_t bytes_ = 0;
     std::deque<Pending> pending_;
     std::deque<Event> events_;

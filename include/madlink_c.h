@@ -61,6 +61,36 @@ ml_status ml_cancel_v1(ml_client*, uint64_t operation);
 ml_status ml_close_v1(ml_client*);
 ml_status ml_next_event_v1(ml_client*, ml_event_v1*);
 void ml_destroy_v1(ml_client*);
+
+/* Optional, in-process terminal results. Slots contain only operation IDs and
+ * outcomes. They are not a durable log, a payload store or a peer ACK. */
+#define ML_MAX_TRACKED_COMPLETIONS_V1 1024u
+enum {
+    ML_COMPLETION_LOCAL_ACCEPTED = 1, /* host write accepted locally, not delivered */
+    ML_COMPLETION_CANCELLED = 2,
+    ML_COMPLETION_DEADLINE = 3,
+    ML_COMPLETION_TRANSPORT_UNKNOWN = 4,
+    ML_COMPLETION_HANDLE_FAULT_UNKNOWN = 5
+};
+typedef struct ml_completion_v1 {
+    uint32_t struct_size, abi_version;
+    uint64_t operation;
+    uint32_t outcome, reserved;
+} ml_completion_v1;
+/* Same owner-thread/non-reentrancy rules as v1. Capacity is 1..MAX and is
+ * allocated on create. cfg/host have their existing v1 ABI. */
+ml_status ml_create_tracked_v1(const ml_config_v1*, const ml_host_v1*, uint32_t capacity, ml_client**);
+/* v1 send remains untracked on any handle. An accepted tracked send reserves a
+ * slot until its result is consumed. Ledger saturation returns ML_QUEUE_FULL
+ * before copying bytes; draining frees a slot. If this handle exhausts unique
+ * IDs, otherwise admissible sends also return ML_QUEUE_FULL, permanently for
+ * this handle. A rejected call produces no operation ID and no completion. */
+ml_status ml_send_tracked_v1(ml_client*, const uint8_t*, uint64_t size, uint64_t deadline_ms, uint64_t* operation);
+/* Initialize size/version before call. An OK consumes one ready result (lowest
+ * ready ID); errors/EMPTY do not touch output or release credit. New drain
+ * remains available after poison; only drain and destroy then remain usable.
+ * Unknown means never blindly replay. Destroy discards all unread results. */
+ml_status ml_next_completion_v1(ml_client*, ml_completion_v1*);
 #ifdef __cplusplus
 }
 #endif
