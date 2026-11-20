@@ -1,0 +1,35 @@
+name: MadLink iOS generated WSS XCTest receipt build-only diagnosis
+'on':
+  push:
+    branches: [checkpoint/madlink-ios-wss-receipt-probe]
+permissions:
+  contents: read
+jobs:
+  receipt-probe:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Verify exact source parent and label boundaries
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = ecfb30dade92a2b5027b728515eb1bd90a2624c3
+          test "$(git rev-parse 'HEAD^1^{tree}')" = 9197615fb9b56118522be16e8dbdf30c07726081
+          git diff --quiet HEAD^ HEAD -- include src ios ios-tracked-preview ios-wss-preview/verify.py ios-wss-preview/binding.py ios-wss-preview/WssTests.mm ios-wss-preview/peer.py
+          test -z "$(git status --porcelain)"
+          if env -u PYTHONPATH python3 -B ios-wss-preview/test_receipt_probe.py >/dev/null 2>&1; then
+            printf '%s\n' 'WSS_RECEIPT_PROBE portable-guards-pass'
+          else
+            printf '%s\n' 'FAIL: wss-receipt-probe-portable-guards'
+            exit 1
+          fi
+      - name: Build real SDK and exact WSS graph; inspect receipt without executing
+        run: env -u PYTHONPATH python3 -B ios-wss-preview/receipt_probe.py
