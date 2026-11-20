@@ -302,6 +302,15 @@ bool exercise(uint16_t port, bool wrong) {
 @end
 @implementation MadLinkWssTests
 - (void)testInstalledAuthenticatedLoopbackWSS {
+    NSBundle* app = [NSBundle mainBundle];
+    NSBundle* tests = [NSBundle bundleForClass:[MadLinkWssTests class]];
+    BOOL expected = [app.bundleIdentifier isEqualToString:@"org.madlink.preview.Demo"] &&
+        [app.executablePath.lastPathComponent isEqualToString:@"Demo"] &&
+        [tests.bundleIdentifier isEqualToString:@"org.madlink.preview.SmokeTests"] &&
+        [tests.executablePath.lastPathComponent isEqualToString:@"SmokeTests"] &&
+        [tests.bundlePath.lastPathComponent isEqualToString:@"SmokeTests.xctest"];
+    XCTAssertTrue(expected, @"wss-product-identity");
+    if (!expected) return;
     XCTAssertTrue(exercise(kValidPort, false), @"wss-positive");
     XCTAssertTrue(exercise(kWrongPort, true), @"wss-wrong-san");
 }

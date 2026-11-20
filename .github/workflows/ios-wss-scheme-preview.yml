@@ -1,0 +1,30 @@
+name: MadLink iOS closed authored-scheme simulator WSS preview
+'on':
+  push:
+    branches: [checkpoint/madlink-ios-wss-scheme-preview]
+permissions:
+  contents: read
+jobs:
+  installed-wss:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Exact parent and portable source guards
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = ecfb30dade92a2b5027b728515eb1bd90a2624c3
+          test "$(git rev-parse 'HEAD^1^{tree}')" = 9197615fb9b56118522be16e8dbdf30c07726081
+          git diff --quiet HEAD^ HEAD -- include src ios ios-tracked-preview ios-wss-preview/verify.py ios-wss-preview/binding.py ios-wss-preview/peer.py .github/workflows/ios-wss-preview.yml
+          test -z "$(git status --porcelain)"
+          env -u PYTHONPATH python3 -B ios-tracked-preview/test_verify.py
+          env -u PYTHONPATH python3 -B ios-wss-preview/test_verify.py
+          env -u PYTHONPATH python3 -B ios-wss-preview/test_scheme.py
+      - name: Closed stock Xcode scheme with verified installed binaries and loopback peers
+        run: env -u PYTHONPATH python3 -B ios-wss-preview/scheme_verify.py
