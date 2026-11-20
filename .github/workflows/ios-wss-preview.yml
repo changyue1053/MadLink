@@ -1,0 +1,31 @@
+name: iOS tracked static package authenticated loopback WSS
+'on':
+  push:
+    branches: [checkpoint/madlink-ios-wss-preview]
+permissions:
+  contents: read
+jobs:
+  installed-wss:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Exact base and structural guards
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = 80c9d8ffd23a5911b4f2eb71b5408b1d57717f2a
+          test "$(git rev-parse 'HEAD^1^{tree}')" = d2fd4ed05b6bd29d65b3011a6febce99dc912a4a
+          git diff --quiet HEAD^ HEAD -- include src ios ios-tracked-preview
+          test -z "$(git status --porcelain)"
+          env -u PYTHONPATH python3 -B ios-tracked-preview/test_verify.py
+          env -u PYTHONPATH python3 -B ios-wss-preview/test_verify.py
+      - name: Installed relocated C API on owned ARM64 simulator with authenticated loopback
+        run: env -u PYTHONPATH python3 -B ios-wss-preview/verify.py
