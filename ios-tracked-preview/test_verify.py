@@ -1,7 +1,9 @@
 """Portable exact-byte, artifact and XCTest guard tests; never invoke Xcode."""
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import verify
 
 
@@ -38,6 +40,28 @@ class Guards(unittest.TestCase):
                                        (summary,[nodes[0]|{"result":"Failed"},*nodes[1:]])):
             with self.assertRaises(verify.Failure):
                 verify.check_results(bad_summary, {"testNodes":bad_nodes})
+
+    def test_both_xcresult_queries_pass_the_actual_stage_wrapper(self):
+        summary={"totalTestCount":3,"passedTests":3,"failedTests":0,"skippedTests":0}
+        cases={"testNodes":[{"nodeType":"Test Case","nodeIdentifier":name,"result":"Passed"}
+                            for name in sorted(verify.TESTS)]}
+        expected=[
+            ["xcrun","xcresulttool","get","test-results",kind,"--path","fixture.xcresult"]
+            for kind in ("summary","tests")
+        ]
+        seen=[]
+        def fake_process(argv, *, cwd, stdout, stderr, check, timeout):
+            self.assertIs(stdout,stderr)
+            self.assertTrue(check)
+            self.assertEqual(timeout,60)
+            self.assertEqual(argv,expected[len(seen)])
+            stdout.write(json.dumps((summary,cases)[len(seen)]).encode())
+            seen.append(argv)
+        # Patch only the OS subprocess boundary. diagnostics.run still validates
+        # each real stage label and handles the bounded output path.
+        with patch("diagnostics.subprocess.run", side_effect=fake_process):
+            verify.check_results(*verify.read_xctest_results(Path("fixture.xcresult")))
+        self.assertEqual(seen,expected)
 
     def test_package_path_and_symlink_rejected(self):
         with tempfile.TemporaryDirectory() as home:

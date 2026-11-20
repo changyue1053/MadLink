@@ -15,16 +15,18 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 2
+          fetch-depth: 3
           persist-credentials: false
           submodules: false
           lfs: false
       - name: Exact public tracked source and portable guards
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^)" = a6d869efd8a5b3f2eb1f31e9b5c1a37392251867
-          test "$(git rev-parse 'HEAD^{tree}')" != "$(git rev-parse 'HEAD^^{tree}')"
-          test "$(git rev-parse 'HEAD^^{tree}')" = e6ee8b6ef2c8f8bfd30e5ac90ae05d7811a12350
+          test "$(git rev-parse HEAD^)" = 02d01d0dd1ce0e7b755b2863d593c224c0383cc7
+          test "$(git rev-parse 'HEAD^1^{tree}')" = 99bc452e277c95aa5ae511655756fb7fccc12624
+          test "$(git rev-parse HEAD~2)" = a6d869efd8a5b3f2eb1f31e9b5c1a37392251867
+          test "$(git rev-parse 'HEAD~2^{tree}')" = e6ee8b6ef2c8f8bfd30e5ac90ae05d7811a12350
+          git diff --quiet HEAD~2 HEAD -- include src
           test -z "$(git status --porcelain)"
           env -u PYTHONPATH python3 -B ios-tracked-preview/test_verify.py
       - name: Relocated ARM64 package, unsigned device link and owned simulator cases

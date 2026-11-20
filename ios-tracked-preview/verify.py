@@ -16,7 +16,7 @@ from project import generate
 from diagnostics import run, STAGES
 from sdk_package import build_package
 
-STAGES.update({"sdk-pin", "archive-inspect", "device-build", "device-inspect", "sim-inspect"})
+STAGES.update({"sdk-pin", "archive-inspect", "device-build", "device-inspect", "sim-inspect", "test-cases"})
 V1 = {"_ml_create_v1", "_ml_connect_v1", "_ml_send_v1", "_ml_tick_v1",
       "_ml_cancel_v1", "_ml_close_v1", "_ml_next_event_v1", "_ml_destroy_v1"}
 TRACKED = {"_ml_create_tracked_v1", "_ml_send_tracked_v1", "_ml_next_completion_v1"}
@@ -129,6 +129,14 @@ def check_results(summary, cases):
     check(seen==TESTS, "test-name")
 
 
+def read_xctest_results(result):
+    return tuple(
+        json.loads(run(["xcrun","xcresulttool","get","test-results",kind,"--path",str(result)],
+                       stage,capture=True,timeout=60))
+        for kind, stage in (("summary","test-summary"),("tests","test-cases"))
+    )
+
+
 def prepare_consumer(folder, xc, simulator):
     folder.mkdir()
     for name in ("App.mm","Smoke.mm","Tests.mm"):
@@ -200,12 +208,7 @@ def simulator_test(work, xc, original):
         snapshot={p:hashlib.sha256(p.read_bytes()).digest() for p in (host,*tests)}
         run(["xcodebuild","test-without-building",*common,"-resultBundlePath",result],"test-without-building",cwd=folder)
         check(all(hashlib.sha256(p.read_bytes()).digest()==d for p,d in snapshot.items()),"simulator-product-mutation")
-        outputs=[
-            json.loads(run(["xcrun","xcresulttool","get","test-results",kind,"--path",str(result)],
-                           "test-"+("cases" if kind=="tests" else kind),capture=True,timeout=60))
-            for kind in ("summary","tests")
-        ]
-        check_results(*outputs)
+        check_results(*read_xctest_results(result))
         check(fingerprint(local)==original,"simulator-package-mutation")
     finally:
         run(["xcrun","simctl","delete",udid],"sim-delete")
