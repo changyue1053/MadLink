@@ -67,11 +67,14 @@ def simulator(work, xc, original):
     evidence_dir = work / "receipt retained outside launch roots"
     evidence_dir.mkdir(mode=0o700)
     evidence = evidence_dir / "stock-receipt.plist"
+    tomb = evidence_dir / "stock-build-project.evidence"
     cert_dir = work / "peer secrets"
     cert_dir.mkdir(mode=0o700)
     with peers(cert_dir) as (der, ports, start):
         local = prepare(folder, xc, der, ports)
-        graph = authority.exact_graph(folder)
+        graph = authority.close_launch_inheritance(folder)
+        check(tracked.fingerprint(local) == original, "simulator-package-mutation")
+        print("WSS_SCHEME pre-build-authored-verified", flush=True)
         check(not build.exists() and not result.exists(), "scheme-fresh-roots")
         udid = stock("xcrun", ["simctl", "create", "MadLinkWSSPreview", "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
                               "com.apple.CoreSimulator.SimRuntime.iOS-26-2"],
@@ -81,7 +84,10 @@ def simulator(work, xc, original):
             stock("xcrun", ["simctl", "boot", udid], "sim-boot")
             stock("xcrun", ["simctl", "bootstatus", udid, "-b"], "sim-ready")
             stock("xcodebuild", ["build-for-testing", *common], "build-for-testing", cwd=folder)
-            check(authority.exact_graph(folder) == graph, "scheme-graph-build-mutation")
+            print("WSS_SCHEME build-for-testing-completed", flush=True)
+            check(tracked.fingerprint(local) == original, "simulator-package-mutation")
+            authority.quarantine_project(folder, build, tomb, graph)
+            print("WSS_SCHEME post-build-authored-restored", flush=True)
             selected, receipt_digest = authority.receipt(products, evidence)
             check(not any(build.rglob("*.xctestrun")), "scheme-no-derived-receipt")
             host, tests = authority.product_paths(products, selected)
@@ -91,10 +97,12 @@ def simulator(work, xc, original):
                 inspect_product(compiled, True)
             before = authority.snapshot(folder, products, selected, evidence, tracked.fingerprint)
             jobs = start()
+            print("WSS_SCHEME pre-launch-closed-graph-and-artifacts-verified", flush=True)
             # Do not give Xcode the stock receipt, test selectors, or a
             # substituted plan. It searches only the exact job-local SYMROOT.
             stock("xcodebuild", ["test-without-building", *common, "-resultBundlePath", result],
                   "test-without-building", cwd=folder, timeout=120)
+            print("WSS_SCHEME scheme-launch-returned", flush=True)
             check(not any(build.rglob("*.xctestrun")), "scheme-no-derived-receipt")
             after = authority.snapshot(folder, products, selected, evidence, tracked.fingerprint)
             check(after == before and authority.digest(evidence) == receipt_digest, "scheme-launch-mutation")
@@ -105,6 +113,7 @@ def simulator(work, xc, original):
                     raise tracked.Failure(reason) from None
             exact_results(*tracked.read_xctest_results(result))
             check(tracked.fingerprint(local) == original, "simulator-package-mutation")
+            print("WSS_SCHEME post-launch-closure-verified", flush=True)
         finally:
             stock("xcrun", ["simctl", "delete", udid], "sim-delete")
     print("PASS: stock authored-scheme ARM64 simulator WSS with exact four installed cases", flush=True)
@@ -145,7 +154,9 @@ if __name__ == "__main__":
                  "scheme-inventory-canonical", "scheme-inventory-type", "scheme-inventory-debug-layout",
                  "scheme-inventory-debug-format", "scheme-inventory-static-layout", "scheme-inventory-static-format",
                  "scheme-inventory-closed", "scheme-inventory-pkginfo", "scheme-loader-control",
-                 "scheme-product-launch-metadata"}
+                 "scheme-product-launch-metadata", "scheme-graph-size", "scheme-graph-parent-scheme",
+                 "scheme-graph-build-mutation", "scheme-project-quarantine", "scheme-project-restore",
+                 "scheme-launch-location"}
         label = str(error)
         raise SystemExit("FAIL: " + (label if label in fixed else "closed-stock-scheme-invalid")) from None
     except Exception:

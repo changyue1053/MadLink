@@ -17,6 +17,7 @@ class SchemeTests(unittest.TestCase):
         fixture.mkdir()
         folder = root / "scheme consumer"
         prepare(folder, fixture, bytes(256), (1, 2))
+        authority.close_launch_inheritance(folder)
         return folder
 
     def test_ambient_injection_has_no_route(self):
@@ -59,6 +60,81 @@ class SchemeTests(unittest.TestCase):
                     authority.exact_graph(folder)
                 path.write_bytes(previous)
             self.assertEqual(authority.exact_graph(folder), expected)
+
+    def test_build_graph_has_explicitly_disabled_launch_inheritance(self):
+        with tempfile.TemporaryDirectory() as work:
+            folder = self.shell(Path(work).resolve())
+            scheme = folder / authority.PROJECT / authority.SCHEME
+            self.assertIn(b'shouldUseLaunchSchemeArgsEnv="NO"', scheme.read_bytes())
+            self.assertNotIn(b'shouldUseLaunchSchemeArgsEnv="YES"', scheme.read_bytes())
+            with self.assertRaises(ValueError):
+                authority.close_launch_inheritance(folder)
+
+    def test_quarantine_moves_unread_sidecars_and_restores_authoritative_bytes(self):
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work).resolve()
+            folder = self.shell(root)
+            build = root / "build"
+            build.mkdir()
+            safety = root / "private evidence"
+            safety.mkdir(mode=0o700)
+            quarantine = safety / "stock-build-project.evidence"
+            original = authority.exact_graph(folder)
+            project = folder / authority.PROJECT
+            outside = root / "never-read"
+            outside.write_bytes(b"untrusted contents")
+            # The foreign symlink and workspace are retained in tomb only;
+            # reading old recursive graph would fail before reaching restore.
+            sidecar = project / "project.xcworkspace"
+            sidecar.mkdir()
+            (sidecar / "PreActions").symlink_to(outside)
+            (project / authority.SCHEME).chmod(0o755)
+            proc_inode = project.stat().st_ino
+            authority.quarantine_project(folder, build, quarantine, original)
+            self.assertEqual(authority.exact_graph(folder), original)
+            self.assertEqual(quarantine.stat().st_ino, proc_inode)
+            self.assertNotEqual(project.stat().st_ino, proc_inode)
+            self.assertTrue((quarantine / "project.xcworkspace/PreActions").is_symlink())
+            self.assertFalse((project / "project.xcworkspace").exists())
+            self.assertEqual((project / authority.SCHEME).stat().st_mode & 0o777, 0o600)
+            (project / "project.xcworkspace").mkdir()
+            with self.assertRaises(ValueError):
+                authority.exact_graph(folder)  # even a recreated sidecar rejects post-launch
+
+    def test_changed_authored_input_or_unsafe_path_is_never_moved(self):
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work).resolve()
+            folder = self.shell(root)
+            build = root / "build"
+            build.mkdir(mode=0o700)
+            safety = root / "evidence"
+            safety.mkdir(mode=0o700)
+            quarantine = safety / "quarantined"
+            original = authority.exact_graph(folder)
+            project = folder / authority.PROJECT
+            scheme = project / authority.SCHEME
+            old = scheme.read_bytes()
+            scheme.write_bytes(old + b"<EnvironmentVariables/>")
+            with self.assertRaises(ValueError):
+                authority.quarantine_project(folder, build, quarantine, original)
+            scheme.write_bytes(old)
+            extra = folder / "Foreign.mm"
+            extra.touch()
+            with self.assertRaises(ValueError):
+                authority.quarantine_project(folder, build, quarantine, original)
+            extra.unlink()
+            with self.assertRaises(ValueError):
+                authority.quarantine_project(folder, build, build / "within-resolver", original)
+            alias = safety / "guard-alias"
+            alias.symlink_to(safety)
+            with self.assertRaises(ValueError):
+                authority.quarantine_project(folder, build, alias / "outside", original)
+            moved = root / "outside-scheme"
+            scheme.rename(moved)
+            scheme.symlink_to(moved)
+            with self.assertRaises(ValueError):
+                authority.quarantine_project(folder, build, quarantine, original)
+            self.assertFalse(quarantine.exists())
 
     @staticmethod
     def stock_receipt():
@@ -185,6 +261,12 @@ class SchemeTests(unittest.TestCase):
                 path.write_bytes(saved + b"mutation")
                 self.assertNotEqual(evaluate(), initial)
                 path.write_bytes(saved)
+            binary = products / binding.HOST
+            old_binary = root / "same-byte-other-inode"
+            original_contents = binary.read_bytes()
+            binary.rename(old_binary)
+            binary.write_bytes(original_contents)
+            self.assertNotEqual(evaluate(), initial)
             (products / "unexpected.xctestrun").touch()
             with self.assertRaises(ValueError):
                 evaluate()

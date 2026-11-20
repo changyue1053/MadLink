@@ -22,6 +22,18 @@ values are not launch authority and are never copied to a command or plan.
 Known values for loader paths remain exact, and additional possible injection
 or non-inert values fail the evidence gate.
 
+Both phases use the identical pinned scheme with launch inheritance explicitly
+disabled. Following build-for-testing, the original pinned project and scheme
+bytes and known source/package digests must still match. The entire disposable
+Xcode-mutated project is renamed outside all launch roots without walking its
+sidecars, and only the memorized, SHA-pinned project and scheme bytes are
+restored at the same canonical path as new files without inherited attributes.
+The fresh closed graph is mandatory before and after launch: even recreation of
+otherwise stock workspace/control sidecars during launch stops qualification.
+Known launch artifacts are also bound to their canonical file identities across
+test execution. This proves launch does not consume earlier generated project
+sidecars; it does not claim those files were absent during stock Xcode's build.
+
 The App/test bundles and the fallback SYMROOT have a closed exact role
 inventory. Optional standard typed dSYMs and byte-identical processing copies
 of the installed simulator static archive cannot supply executable alternatives.

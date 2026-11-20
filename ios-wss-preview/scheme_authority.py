@@ -15,10 +15,14 @@ XCODE_ID = "com.apple.dt.Xcode"
 PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 TOOLS = {"xcodebuild": DEVELOPER + "/usr/bin/xcodebuild",
          "xcrun": "/usr/bin/xcrun", "codesign": "/usr/bin/codesign"}
+PROJECT = "Preview.xcodeproj"
+SCHEME = "xcshareddata/xcschemes/Preview.xcscheme"
+LEGACY_SCHEME_HASH = "e50f8ba280e12b8526b31c83ba3b6607e955439c11cef601ebe82d4ad0946432"
 GRAPH = {
     "project.pbxproj": "0b9af8524b3b8c1644002e7c1a6ba50b94ec0be57d5510c2fb58cfed43621900",
-    "xcshareddata/xcschemes/Preview.xcscheme": "e50f8ba280e12b8526b31c83ba3b6607e955439c11cef601ebe82d4ad0946432",
+    SCHEME: "bead3f5b63ee6c33f9f96e885736f403a0c30834fd9f394e648830101ba9a63a",
 }
+GRAPH_LIMIT = 128 * 1024
 STOCK_DEPS = {
     "/usr/lib/libSystem.B.dylib", "/usr/lib/libobjc.A.dylib", "/usr/lib/libc++.1.dylib",
     "@rpath/XCTest.framework/XCTest",
@@ -62,25 +66,95 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def exact_graph(folder):
+def members(directory, expected, label):
+    unseen = set(expected)
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            need(entry.name in unseen, label)
+            unseen.remove(entry.name)
+    need(not unseen, label)
+
+
+def project_root(folder):
     need(folder.resolve(strict=True) == folder, "scheme-graph-location")
-    expected = SOURCES | {"Preview.xcodeproj", "MadLink.xcframework"}
-    need({p.name for p in folder.iterdir()} == expected, "scheme-graph-root")
+    members(folder, SOURCES | {PROJECT, "MadLink.xcframework"}, "scheme-graph-root")
+    binding.exact(folder, "MadLink.xcframework", directory=True)
     for name in SOURCES:
         binding.exact(folder, name)
-    project = binding.exact(folder, "Preview.xcodeproj", directory=True)
-    dirs = {"xcshareddata", "xcshareddata/xcschemes"}
-    found = {}
-    for entry in project.rglob("*"):
-        rel = entry.relative_to(project).as_posix()
-        need(entry.resolve(strict=True) == entry, "scheme-graph-canonical")
-        if entry.is_dir():
-            need(rel in dirs, "scheme-graph-directory")
-        else:
-            need(rel in GRAPH and entry.is_file(), "scheme-graph-member")
-            found[rel] = digest(entry)
-    need(found == GRAPH, "scheme-graph-digest")
-    return (found, {name: digest(folder / name) for name in SOURCES})
+    return binding.exact(folder, PROJECT, directory=True)
+
+
+def bounded(path):
+    with path.open("rb") as file:
+        data = file.read(GRAPH_LIMIT + 1)
+    need(len(data) <= GRAPH_LIMIT, "scheme-graph-size")
+    return data
+
+
+def payload(folder):
+    # After build, check only the authoritative file names and their known
+    # parent components. Never enumerate or read the generated sidecars.
+    project = project_root(folder)
+    authored = {rel: bounded(binding.exact(project, rel)) for rel in GRAPH}
+    need({rel: hashlib.sha256(data).hexdigest() for rel, data in authored.items()} == GRAPH,
+         "scheme-graph-digest")
+    return authored, {name: digest(folder / name) for name in SOURCES}
+
+
+def exact_graph(folder):
+    project = project_root(folder)
+    shared = binding.exact(project, "xcshareddata", directory=True)
+    schemes = binding.exact(project, "xcshareddata/xcschemes", directory=True)
+    members(project, {"project.pbxproj", "xcshareddata"}, "scheme-graph-member")
+    members(shared, {"xcschemes"}, "scheme-graph-member")
+    members(schemes, {"Preview.xcscheme"}, "scheme-graph-member")
+    return payload(folder)
+
+
+def close_launch_inheritance(folder):
+    # Apply the one known-byte edit before the first invocation on this graph.
+    project = project_root(folder)
+    scheme = binding.exact(project, SCHEME)
+    data = bounded(scheme)
+    prior = b'shouldUseLaunchSchemeArgsEnv="YES"'
+    need(hashlib.sha256(data).hexdigest() == LEGACY_SCHEME_HASH and data.count(prior) == 1,
+         "scheme-graph-parent-scheme")
+    closed = data.replace(prior, b'shouldUseLaunchSchemeArgsEnv="NO"')
+    need(hashlib.sha256(closed).hexdigest() == GRAPH[SCHEME], "scheme-graph-digest")
+    scheme.write_bytes(closed)
+    return exact_graph(folder)
+
+
+def quarantine_project(folder, build, tomb, expected):
+    # The caller owns a canonical private sibling directory outside every
+    # resolver root. Move the entire old project with one rename, regardless of
+    # whether any Xcode sidecars are present; none are walked or interpreted.
+    project = project_root(folder)
+    need(payload(folder) == expected, "scheme-graph-build-mutation")
+    need(tomb.parent.is_dir() and tomb.parent.resolve(strict=True) == tomb.parent and
+         not (tomb.parent.stat().st_mode & 0o077) and not tomb.exists() and not tomb.is_symlink() and
+         all(root.resolve(strict=True) == root and not tomb.is_relative_to(root) and not root.is_relative_to(tomb)
+             for root in (folder, build)), "scheme-project-quarantine")
+    project.rename(tomb)
+    need(tomb.resolve(strict=True) == tomb and not project.exists(), "scheme-project-quarantine")
+    project.mkdir(mode=0o700)
+    (project / "xcshareddata").mkdir(mode=0o700)
+    (project / "xcshareddata/xcschemes").mkdir(mode=0o700)
+    for relative, original in expected[0].items():
+        with (project / relative).open("xb") as file:
+            file.write(original)
+            os.fchmod(file.fileno(), 0o600)
+    need(exact_graph(folder) == expected, "scheme-project-restore")
+
+
+def locations(paths):
+    # Detect even same-byte inode substitution on the canonical launch route.
+    out = {}
+    for path in paths:
+        need(path.resolve(strict=True) == path, "scheme-launch-location")
+        info = path.stat()
+        out[path.as_posix()] = (info.st_dev, info.st_ino)
+    return out
 
 
 def classify_receipt(doc):
@@ -168,7 +242,11 @@ def snapshot(folder, products, selected, evidence, fingerprint):
     host, tests = product_paths(products, selected)
     need(evidence.resolve(strict=True) == evidence and evidence.is_file() and
          not list(products.rglob("*.xctestrun")), "scheme-evidence-quarantine")
-    return graph, digest(evidence), fingerprint(host.parent), {key: fingerprint(path.parent) for key, path in tests.items()}
+    known = [folder, folder / PROJECT, *(folder / PROJECT / rel for rel in GRAPH),
+             *(folder / name for name in SOURCES), folder / "MadLink.xcframework",
+             products, host, host.parent, evidence, *tests.values(), *(p.parent for p in tests.values())]
+    return (graph, locations(known), digest(evidence), fingerprint(host.parent),
+            {key: fingerprint(path.parent) for key, path in tests.items()})
 
 
 def rpaths(text):
