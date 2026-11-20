@@ -1,0 +1,91 @@
+name: OpenHarmony publisher route probe only
+on:
+  push:
+    branches: [checkpoint/madlink-ohos-api20-publisher-probe]
+    paths: [.github/workflows/ohos-publisher-probe.yml]
+permissions: {}
+jobs:
+  publisher-route:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      # No checkout or third-party action; this reviewed program is self-contained.
+      - name: Bounded publisher checksum GET and archive HEAD only
+        shell: bash --noprofile --norc -euo pipefail {0}
+        run: |
+          python3 - <<'PYPROBE'
+          #!/usr/bin/env python3
+          """Route admission only: no archive GET, extraction, SDK tool, or credential use."""
+          import re
+          import urllib.error
+          import urllib.request
+
+          BASE = 'https://repo.huaweicloud.com/openharmony/os/6.0-Release/ohos-sdk-windows_linux-public.tar.gz'
+          SHA = b'a315834ac133625efc912bd078f3e2b2550868d04aef1b5aa4f9679c8b3c9d8e\n'
+          SIZE = '2487576829'
+          TYPES = {'application/gzip', 'application/x-gzip', 'application/octet-stream'}
+
+
+          class Rejected(Exception):
+              pass
+
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise Rejected('redirect')
+
+
+          def check_response(response, url):
+              if response.status != 200:
+                  raise Rejected('http-status')
+              if response.geturl() != url:
+                  raise Rejected('redirect')
+              if response.headers.get('Content-Encoding', 'identity').lower() != 'identity':
+                  raise Rejected('content-encoding')
+
+
+          def probe(opener=None):
+              if opener is None:
+                  # Default HTTPS certificate validation, no proxy/fallback/redirect route.
+                  opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+              checksum_url = BASE + '.sha256'
+              request = urllib.request.Request(checksum_url, method='GET', headers={'Accept-Encoding': 'identity'})
+              with opener.open(request, timeout=15) as response:
+                  check_response(response, checksum_url)
+                  # One bounded read; the 66th byte rejects oversized responses, including HTML.
+                  body = response.read(66)
+                  if not re.fullmatch(b'[0-9a-f]{64}\n', body):
+                      raise Rejected('checksum-noncanonical')
+                  if body != SHA:
+                      raise Rejected('checksum-mismatch')
+              request = urllib.request.Request(BASE, method='HEAD', headers={'Accept-Encoding': 'identity'})
+              with opener.open(request, timeout=15) as response:
+                  check_response(response, BASE)
+                  if response.headers.get('Content-Length') != SIZE:
+                      raise Rejected('head-size')
+                  content_type = response.headers.get('Content-Type', '').split(';', 1)[0].strip().lower()
+                  if content_type not in TYPES:
+                      raise Rejected('head-type')
+                  # Deliberately never call response.read() on the archive HEAD response.
+
+
+          def main():
+              try:
+                  probe()
+              except Rejected as error:
+                  print('FAIL: publisher-route-' + str(error))
+                  return 1
+              except urllib.error.HTTPError as error:
+                  print('FAIL: publisher-route-' + ('redirect' if 300 <= error.code < 400 else 'http-status'))
+                  return 1
+              except Exception:
+                  # Do not print exception bodies, URLs supplied by a server, or headers.
+                  print('FAIL: publisher-route-network')
+                  return 1
+              print('PASS: publisher-route-admission-only; no archive downloaded')
+              return 0
+
+
+          if __name__ == '__main__':
+              raise SystemExit(main())
+          PYPROBE
