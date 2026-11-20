@@ -1,0 +1,33 @@
+name: iOS tracked static XCFramework qualification
+'on':
+  push:
+    branches: [checkpoint/madlink-ios-tracked-completions]
+permissions:
+  contents: read
+jobs:
+  installed-ios:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/checkpoint/madlink-ios-tracked-completions'
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Exact public tracked source and portable guards
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = a6d869efd8a5b3f2eb1f31e9b5c1a37392251867
+          test "$(git rev-parse 'HEAD^{tree}')" != "$(git rev-parse 'HEAD^^{tree}')"
+          test "$(git rev-parse 'HEAD^^{tree}')" = e6ee8b6ef2c8f8bfd30e5ac90ae05d7811a12350
+          test -z "$(git status --porcelain)"
+          env -u PYTHONPATH python3 -B ios-tracked-preview/test_verify.py
+      - name: Relocated ARM64 package, unsigned device link and owned simulator cases
+        run: |
+          env -u PYTHONPATH python3 -B ios-tracked-preview/verify.py
+          printf '%s\n' 'Standalone iOS static SDK: exact ABI on both slices, unsigned ARM64 device link only and three synthetic ARM64 iOS Simulator tests. No device execution, network, cohost or release qualification.' >> "$GITHUB_STEP_SUMMARY"
