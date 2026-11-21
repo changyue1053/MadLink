@@ -114,7 +114,20 @@ project(IndependentConsumer LANGUAGES C CXX)
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "OHOS" OR NOT OHOS_ARCH STREQUAL "arm64-v8a")
  message(FATAL_ERROR "OHOS ARM64 required")
 endif()
-find_package(MadLink CONFIG REQUIRED PATHS "${SDK_PREFIX}/lib/cmake/MadLink" NO_DEFAULT_PATH)
+# The OHOS package search only looks under its target root by default. This
+# independently staged package is outside that root; keep the exception local.
+set(madlink_config_dir "${SDK_PREFIX}/lib/cmake/MadLink")
+find_package(MadLink CONFIG REQUIRED CONFIGS MadLinkConfig.cmake PATHS "${madlink_config_dir}"
+             NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+if(NOT MadLink_CONFIG STREQUAL "${madlink_config_dir}/MadLinkConfig.cmake")
+ message(FATAL_ERROR "MadLink config did not come from the relocated install")
+endif()
+get_target_property(madlink_archive MadLink::madlink IMPORTED_LOCATION_RELEASE)
+get_target_property(madlink_headers MadLink::madlink INTERFACE_INCLUDE_DIRECTORIES)
+if(NOT madlink_archive STREQUAL "${SDK_PREFIX}/lib/libmadlink.a" OR
+   NOT madlink_headers STREQUAL "${SDK_PREFIX}/include")
+ message(FATAL_ERROR "MadLink target does not point at the relocated archive and headers")
+endif()
 add_library(consumer SHARED consumer.c)
 set_target_properties(consumer PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_features(consumer PRIVATE c_std_11)
