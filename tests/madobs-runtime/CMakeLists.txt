@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.20)
+project(MadLinkMadObsLocalConsumer LANGUAGES C CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Only relocated installed prefixes; never add_subdirectory upstream producers.
+find_package(MadObs 0.1.0 EXACT CONFIG REQUIRED PATHS "${MADOBS_PREFIX}/lib/cmake/MadObs" NO_DEFAULT_PATH)
+if(NOT TARGET MadObs::runtime)
+  message(FATAL_ERROR "A real installed MadObs runtime is required, not API-only")
+endif()
+foreach(required "${MADLINK_PREFIX}/include/madlink_c.h" "${MADLINK_PREFIX}/lib/libmadlink.a"
+                 "${OPTIONAL_PREFIX}/include/madlink_madobs/queued_observer.hpp")
+  if(NOT EXISTS "${required}")
+    message(FATAL_ERROR "Required installed file unavailable")
+  endif()
+endforeach()
+add_library(installed_madlink STATIC IMPORTED)
+set_target_properties(installed_madlink PROPERTIES IMPORTED_LOCATION "${MADLINK_PREFIX}/lib/libmadlink.a"
+  INTERFACE_INCLUDE_DIRECTORIES "${MADLINK_PREFIX}/include")
+add_executable(consumer main.cpp)
+target_compile_features(consumer PRIVATE cxx_std_17)
+target_compile_options(consumer PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_include_directories(consumer PRIVATE "${OPTIONAL_PREFIX}/include")
+target_link_libraries(consumer PRIVATE installed_madlink MadObs::runtime)

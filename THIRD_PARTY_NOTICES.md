@@ -6,11 +6,11 @@ standards, system libraries, compilers or generated dependency artifacts.
 No third-party implementation source, MadObs headers, binary dependency, build output,
 test certificate/private key or raw test log is included in this repository.
 
-The core integration contains neither optional adapter below. The historical
-notices are retained for the separate source checkpoints; no dependency or
-platform package is shipped here.
+This snapshot contains optional adapter source, but the default core does not
+compile or install either adapter. No dependency or platform package is shipped
+here.
 
-## Optional libcurl WSS adapter (separate checkpoint)
+## Optional libcurl WSS adapter
 
 - curl/libcurl: copyright Daniel Stenberg and contributors; upstream `curl` license
   (MIT-inspired, not identical to MIT): https://curl.se/docs/copyright.html
@@ -22,7 +22,7 @@ platform package is shipped here.
   dependency versions, licensing, source/notice obligations and shipping method
   before distributing a binary bundle. These dependencies are not bundled here.
 
-## Optional MadObs API-only adapter (separate checkpoint)
+## Optional MadObs API-only adapter
 
 Public API source: https://github.com/changyue1053/MadObs/tree/79fd8ced44a18bca574598ff683cd706ded16a60
 The adapter was developed against this exact public revision's observer/privacy API.
@@ -34,6 +34,6 @@ provided pinned API headers and does not download them automatically.
 
 ## Public standards and documentation
 
-The separate optional transport checkpoint refers to WebSocket RFC 6455, TLS
+The optional transport refers to WebSocket RFC 6455, TLS
 documentation and official libcurl API documentation. External documents retain their respective rights. This
 snapshot does not include copies of those standards or upstream implementation code.

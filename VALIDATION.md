@@ -19,6 +19,19 @@ tracked object to fail on the old archive for exactly the three added symbols.
 This is Linux x86-64 same-toolchain relinking evidence for those fixtures, not
 binary replacement, arbitrary legacy compatibility, or mobile compatibility.
 
+The optional MadObs checks use the pinned public observer/privacy headers, the
+queue adapter and an installed MadLink C SDK. They do not build or link the
+MadObs runtime. A separate [manual installed-runtime check](packaging/MADOBS_RUNTIME.md)
+uses the pinned public MadObs static runtime and both relocated SDKs, and
+verifies admission/drain plus finite-policy validation in a synthetic local
+sink. It is not encryption, restart/durability or real telemetry export evidence.
+
+The optional Linux WSS checks use actual TLS sockets restricted
+to loopback, synthetic data, ephemeral credentials, and a system libcurl. Both
+the individual-connection regression and the unwrapped two-client isolation
+check are opt-in. Injected AGAIN is not proof of kernel backpressure. No remote
+delivery, mobile runtime, or default package dependency is implied.
+
 Compiler-matrix cases with tools unavailable are not run and the matrix is
 incomplete. No mobile runtime, public-network transport, peer delivery, release,
 or production qualification follows from any of these host checks.

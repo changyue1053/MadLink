@@ -6,8 +6,8 @@ and optional tracked send results. Applications provide the transport, monotonic
 clock, and randomness. The installed core needs no networking or telemetry library.
 
 This is the independently implemented standalone core, not the older IMLink
-extraction described in the initial repository README. This source integration
-does not ship QUIC, TCP/TLS, push, production transport, or platform bindings.
+extraction described in the initial repository README. This source integration does not ship QUIC, push, production transport, or
+platform bindings. Optional source experiments are separate from the installed core.
 
 ## Build and consume on Linux
 
@@ -48,6 +48,19 @@ On normal shutdown, close, drain tracked results, then destroy. On poison,
 drain then destroy; legacy operations remain unavailable. Destruction discards
 unread results. No process-restart recovery, delivery guarantee, production
 transport, thread safety, or hard process-memory bound is claimed.
+
+## Optional Linux adapters
+
+- [MadObs state observation](optional/madobs/README.md): an owner-thread queue
+  tested with exact upstream observer/privacy headers and the installed MadLink
+  C SDK. Provide the pinned headers separately. This does not include or test the
+  installed MadObs runtime. The separate [manual installed-runtime check](packaging/MADOBS_RUNTIME.md)
+  tests admission and drain of synthetic events using a local sink, with no export.
+- [libcurl WSS](optional/curl/README.md): an opt-in C++ adapter, tested with real
+  local TLS/WSS peers and synthetic messages. Run `sh run-wss-tests.sh` and
+  `python3 -B tests/wss/isolation.py` with an existing WSS-enabled libcurl.
+  Neither check calls a public endpoint. The adapter is not installed by the core
+  SDK and does not add a C ABI factory or change tracked completion semantics.
 
 ## Verification scope
 
