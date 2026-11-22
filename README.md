@@ -1,74 +1,63 @@
-# MadLink (experimental)
+# MadLink
 
-Business-agnostic reliable communication SDK extracted from IMLink, preserving
-QUIC/TCP-TLS, request/cancellation, retry budgets, DNS, push and platform sources.
-Not an IM SDK. No MadDB/MadCrypto/MadInfer/MadMedia/MadObs runtime dependency.
-Current tested build: Linux x86_64, TCP/TLS and QUIC static build; platform bindings retained but not
-validated in this environment. This batch does not claim production readiness.
+MadLink is an experimental, MIT-licensed C++17 connection core with a C11
+interface. It provides per-client lifecycle and retry state, bounded send queues,
+and optional tracked send results. Applications provide the transport, monotonic
+clock, and randomness. The installed core needs no networking or telemetry library.
 
-## Reproducible standalone build
+This is the independently implemented standalone core, not the older IMLink
+extraction described in the initial repository README. This source integration
+does not ship QUIC, TCP/TLS, push, production transport, or platform bindings.
 
-CMake >=3.20, C++17 compiler, make, Python for include checks.
-Acquire pinned dependencies explicitly, not during configure:
+## Build and consume on Linux
 
-```sh
-bash scripts/fetch_deps.sh /tmp/madlink-deps
-BSSL=/tmp/madlink-deps/boringssl-533902fb2e8fd0586db7d58879d697721726605a
-cmake -S "$BSSL" -B /tmp/madlink-deps/boringssl-build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
-cmake --build /tmp/madlink-deps/boringssl-build --target ssl crypto -j4
-cmake -S . -B build -DMADLINK_ENABLE_QUIC=OFF \
-  -DIMLINK_BSSL_DIR="$BSSL" -DIMLINK_BSSL_BUILD=/tmp/madlink-deps/boringssl-build \
-  -DMADLINK_GTEST_SOURCE=/tmp/madlink-deps/googletest-1.17.0
-cmake --build build -j4
-ctest --test-dir build --output-on-failure
-```
-
-`-DBUILD_TESTING=OFF` needs no GoogleTest. QUIC is explicit, never detected from
-an incidental library file: `-DMADLINK_ENABLE_QUIC=ON` requires pinned XQUIC source
-and static build (`IMLINK_XQUIC_DIR`, `IMLINK_XQUIC_BUILD`) and fails if missing.
-To build the pinned QUIC dependency (the SDK only needs its static target):
+Use existing C++17/C11 compilers, `ar`, Make, pkg-config and Python. These scripts
+do not fetch or install dependencies.
 
 ```sh
-bash scripts/fetch_deps.sh /tmp/madlink-deps quic
-XQUIC=/tmp/madlink-deps/xquic-278755ef64a4ed7ac89c0ac1fc30aacb1221b8d4
-cmake -S "$XQUIC" -B /tmp/madlink-deps/xquic-build -DSSL_TYPE=boringssl \
-  -DSSL_PATH="$BSSL" -DSSL_INC_PATH="$BSSL/include" \
-  '-DSSL_LIB_PATH=/tmp/madlink-deps/boringssl-build/libssl.a;/tmp/madlink-deps/boringssl-build/libcrypto.a' \
-  -DXQC_ENABLE_TESTING=0
-cmake --build /tmp/madlink-deps/xquic-build --target xquic-static -j4
-# Add MADLINK_ENABLE_QUIC=ON, IMLINK_XQUIC_DIR=$XQUIC and
-# IMLINK_XQUIC_BUILD=/tmp/madlink-deps/xquic-build to the SDK configure command.
+sh run-tests.sh
+sh run-c-abi-tests.sh
+sh packaging/install-core.sh "$PWD/build/local-sdk" "$PWD/build/local-objects"
+python3 -B packaging/test-relocation.py
+python3 -B packaging/test-tracked-completions.py
+python3 -B packaging/test-tracked-completions.py --ubsan
 ```
 
-Real QUIC integration tests accept an external test server via
-`MADLINK_QUIC_TEST_SERVER=/absolute/path/to/test_server`.
-Use `MADLINK_REQUIRE_QUIC_INTEGRATION=ON` for release verification: configure fails
-if that binary is absent. In development mode four server tests explicitly skip
-when absent; skipped is NOT passed.
+The static SDK installs `madlink_c.h`, `libmadlink.a`, pkg-config metadata, and
+notices. Compile the application's C sources as C11 and link using the matching
+C++ driver. The installation layout is relocatable; the archive itself is
+specific to the build target and toolchain. See [installed SDK guide](packaging/INSTALLED.md).
 
-Third-party libraries remain outside this repository; no private source is fetched.
+## Lifecycle and tracked results
 
-## Consumption
+Each handle and its transport belong to one owner thread. Host callbacks are
+synchronous, non-reentrant, nonblocking, and must not throw. Keep callback
+context alive through destruction. Drive `ml_tick_v1` yourself; there is no
+worker thread. Event payloads are borrowed and must be copied before the next
+event poll or destruction.
 
-Use `add_subdirectory(MadLink)` and `target_link_libraries(app PRIVATE MadLink::MadLink)`.
-Include `<madlink/madlink.h>`; `madlink` is currently a C++ namespace alias over the
-preserved implementation. See `PUBLIC_API.md` for lifecycle and compatibility limits.
-The two-app host sample constructs independent clients with distinct protocols.
+Legacy diagnostic events may be dropped. To get an in-process terminal result
+for every admitted tracked send, use `ml_create_tracked_v1` with 1–1024 slots,
+`ml_send_tracked_v1`, and `ml_next_completion_v1`. Each admitted send reserves
+a slot until the result is consumed; a full ledger rejects new tracked sends.
+`LOCAL_ACCEPTED` means the transport accepted the bytes locally, not that the
+peer received or acknowledged them. An unknown outcome is not permission to
+retry; reconnect does not automatically replay queued operations.
 
-Observability is opt-in: set `MADLINK_WITH_OBS=ON` and provide the public MadObs
-API include directory via `MADOBS_INCLUDE_DIR`, then link `MadLink::ObsAdapter`.
-It is header-only, no runtime link. Assign an SDK ID explicitly (global registry
-not frozen). A custom `metrics_sink` or absent sink also works. Never export body,
-tokens, free-form tags or paths through telemetry. Empty log sink is Noop.
+On normal shutdown, close, drain tracked results, then destroy. On poison,
+drain then destroy; legacy operations remain unavailable. Destruction discards
+unread results. No process-restart recovery, delivery guarantee, production
+transport, thread safety, or hard process-memory bound is claimed.
 
-Important behavior changes: readiness timeout is fail-closed; SPKI/mTLS unsupported
-config returns null instead of being silently accepted. Legacy protocol/ALPN and
-cache identifiers are preserved. Historical `imlink/README.md` is source context,
-not this SDK's release status. See `TASK_RESULT.md` and `SUPPORT_MATRIX.md`.
+## Verification scope
 
-## Publication gate
+See [validation](VALIDATION.md) and the [frozen-object ABI check](packaging/abi-upgrade/README.md).
+The latter relinks unchanged old C objects against both exact installed archives
+on a Linux x86-64 GCC toolchain. It does not replace code inside an already linked
+static executable or establish cross-platform ABI compatibility. The historical
+public revisions required by that reproduction are listed in its guide.
 
-The owner authorized this experimental public source checkpoint after the scoped
-review in `docs/PUBLICATION_REVIEW.md`. No first-party open-source license is
-granted or invented. Publication is not a production release. Upstream notices
-are in `LICENSES/`; outstanding release gates are in `TASK_RESULT.md`.
+Android, iOS, OpenHarmony and production interoperability are not qualified by
+this branch. No workflows, SDK binaries, certificates or raw test logs are
+published in this source integration. See [LICENSE](LICENSE) and
+[third-party notices](THIRD_PARTY_NOTICES.md).
